@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="가계부">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="icon.png">
+<title>가계부</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{--bg:#f4f4f7;--card:#fff;--fg:#17171c;--mut:#8b8b96;--line:#e7e7ee;--ac:#4f46e5;--ac2:#eef0ff}
+@media(prefers-color-scheme:dark){:root{--bg:#0f0f13;--card:#1a1a21;--fg:#eeeef4;--mut:#8a8a94;--line:#2a2a34;--ac:#7c83f8;--ac2:#242438}}
+body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  background:var(--bg);color:var(--fg);padding-bottom:calc(72px + env(safe-area-inset-bottom))}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);
+  padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px}
+header h1{font-size:17px;margin:0;flex:1;font-weight:700;letter-spacing:-.3px}
+main{padding:16px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
+.card h2{font-size:13px;color:var(--mut);margin:0 0 12px;font-weight:600;letter-spacing:.2px}
+label{display:block;font-size:12px;color:var(--mut);margin:14px 0 6px;font-weight:600}
+label:first-child{margin-top:0}
+input,select{width:100%;font:inherit;color:var(--fg);background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;padding:11px 12px;-webkit-appearance:none}
+input:focus,select:focus{outline:2px solid var(--ac);outline-offset:-1px}
+#amt{font-size:30px;font-weight:700;text-align:right;padding:14px 12px;letter-spacing:-.5px}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;
+  padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+.chip.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
+button.big{width:100%;background:var(--ac);color:#fff;border:0;border-radius:12px;
+  padding:15px;font:inherit;font-size:16px;font-weight:700;margin-top:18px;cursor:pointer}
+button.ghost{background:none;border:1px solid var(--line);color:var(--fg);border-radius:9px;
+  padding:9px 12px;font:inherit;font-size:13px;cursor:pointer}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:11px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row .l{min-width:0}
+.row .t{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row .s{font-size:12px;color:var(--mut)}
+.amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.del{background:none;border:0;color:var(--mut);font-size:19px;padding:4px 6px;cursor:pointer}
+.big-num{font-size:34px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums}
+.bar{height:7px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:5px}
+.bar i{display:block;height:100%;background:var(--ac);border-radius:4px}
+.split{display:flex;gap:10px}.split>*{flex:1}
+.pill{background:var(--ac2);color:var(--ac);border-radius:9px;padding:12px;text-align:center;font-size:13px}
+.pill b{display:block;font-size:19px;margin-top:3px;font-variant-numeric:tabular-nums}
+.empty{color:var(--mut);text-align:center;padding:28px 0;font-size:14px}
+.note{color:var(--mut);font-size:12px;margin-top:4px}
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;background:none;border:0;padding:11px 0 13px;font:inherit;font-size:11px;
+  color:var(--mut);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button.on{color:var(--ac);font-weight:700}
+nav span{font-size:20px;line-height:1}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);
+  background:var(--fg);color:var(--bg);padding:11px 20px;border-radius:999px;font-size:14px;
+  font-weight:600;opacity:0;transition:.2s;pointer-events:none;z-index:9}
+#toast.on{opacity:1;transform:translateX(-50%)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>가계부</h1>
+  <input type="month" id="ym" style="width:auto;padding:7px 10px;font-size:14px">
+</header>
+
+<main id="view"></main>
+
+<nav>
+  <button data-tab="add" class="on"><span>➕</span>입력</button>
+  <button data-tab="list"><span>📋</span>내역</button>
+  <button data-tab="stat"><span>📊</span>통계</button>
+  <button data-tab="fix"><span>🔁</span>고정비</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+/* ============ 여기만 고치면 분류가 바뀝니다 ============ */
+const CAT = {
+  "데이트" : ["식사","카페","주유비","쇼핑","선물","문화생활","여행","기타"],
+  "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"],
+  "대출금" : ["원금","이자","기타"]
+};
+const PAYERS = ["나","여자친구"];   // 데이트 비용 결제자
+const DEFAULT_RATE = 1578;          // 1유로 = ?원 (앱이 매일 자동으로 갱신함)
+/* ==================================================== */
+
+const KEY = "moneybook";
+const $ = s => document.querySelector(s);
+const won = n => n.toLocaleString("ko-KR");
+const ymOf = d => d.slice(0,7);
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+
+let db = load();
+let tab = "add";
+let draft = { m:"데이트", s:"식사", p:"나", cur:"₩" };
+
+function load(){
+  const base = { tx:[], fixed:[], rate:DEFAULT_RATE, rateAt:"" };
+  try {
+    const r = JSON.parse(localStorage.getItem(KEY));
+    if (r && Array.isArray(r.tx)) return Object.assign(base, r);
+  } catch(e){}
+  return base;
+}
+
+/* 유로 환율 — ECB 공시환율, 키 없이 무료. 실패하면 마지막 환율 그대로 씀 */
+function fetchRate(loud){
+  fetch("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=KRW")
+    .then(r => r.json())
+    .then(j => {
+      if (!j.rates || !j.rates.KRW) throw new Error("bad");
+      db.rate = Math.round(j.rates.KRW); db.rateAt = j.date;
+      save(); render();
+      if (loud) toast("1€ = " + won(db.rate) + "원");
+    })
+    .catch(() => { if (loud) toast("환율 못 가져옴 — 직접 입력하세요"); });
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 1400);
+}
+
+/* ---- 순수 집계 함수 (주소 끝에 #test 붙이면 자가검증) ---- */
+function summarize(tx, fixed, ym){
+  const rows = tx.filter(t => ymOf(t.d) === ym).sort((a,b) => b.d.localeCompare(a.d));
+  const sum  = a => a.reduce((s,t) => s + t.a, 0);
+
+  const byMain = {};
+  for (const m of Object.keys(CAT)) byMain[m] = 0;
+  for (const t of rows) byMain[t.m] = (byMain[t.m] || 0) + t.a;
+
+  const date = rows.filter(t => t.m === "데이트");
+  const byPayer = {};
+  for (const p of PAYERS) byPayer[p] = 0;
+  for (const t of date) byPayer[t.p] = (byPayer[t.p] || 0) + t.a;
+
+  const bySub = {};
+  for (const t of date) bySub[t.s] = (bySub[t.s] || 0) + t.a;
+
+  // ponytail: 고정비는 등록돼 있으면 모든 달에 반영. 시작/종료 월이 필요해지면 f.from / f.to 추가.
+  // 유로 지출은 입력 시점 환율로 원화 변환해 저장하므로 여기서는 통화를 신경 쓸 필요가 없음.
+  const fixedTotal = sum(fixed);
+  const varTotal   = sum(rows);
+  return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, total: varTotal + fixedTotal };
+}
+/* -------------------------------------------------------- */
+
+/* 입력한 글자 -> 원화 정수. 유로면 환율 적용. (#test 로 검증) */
+function toKRW(str, cur, rate){
+  const n = parseFloat(String(str).replace(/,/g, "").replace(/[^0-9.]/g, ""));
+  if (!n || !isFinite(n)) return 0;
+  return cur === "€" ? Math.round(n * rate) : Math.round(n);
+}
+
+function el(html){ const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
+function esc(s){ return String(s).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
+
+function chips(items, cur, onPick){
+  const box = document.createElement("div"); box.className = "chips";
+  for (const it of items){
+    const b = document.createElement("button");
+    b.className = "chip" + (it === cur ? " on" : "");
+    b.textContent = it;
+    b.onclick = () => onPick(it);
+    box.appendChild(b);
+  }
+  return box;
+}
+
+function barRow(name, amount, max){
+  return el('<div style="margin-bottom:12px"><div class="row" style="border:0;padding:0">'
+    + '<div class="t">' + esc(name) + '</div><div class="amt">' + won(amount) + '</div></div>'
+    + '<div class="bar"><i style="width:' + (amount / max * 100) + '%"></i></div></div>');
+}
+
+/* ---- 입력 ---- */
+function viewAdd(v){
+  const eur = draft.cur === "€";
+  const c = el('<div class="card"></div>');
+  c.append(el("<label>통화</label>"),
+           chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }),
+           el("<label>금액 (" + draft.cur + ")</label>"),
+           el('<input id="amt" type="text" inputmode="' + (eur ? "decimal" : "numeric") + '" placeholder="0">'),
+           el('<div id="conv" class="note"></div>'));
+
+  if (eur){
+    const rr = el('<div class="row" style="border:0;padding:8px 0 0"></div>');
+    rr.append(el('<div class="s">1 € = <b>' + won(db.rate) + "</b> 원"
+      + (db.rateAt ? " · " + db.rateAt : " · 기본값") + "</div>"));
+    const box = el('<div style="display:flex;gap:6px"></div>');
+    const rf = el('<button class="ghost">갱신</button>');
+    rf.onclick = () => fetchRate(true);
+    const rm = el('<button class="ghost">직접</button>');
+    rm.onclick = () => {
+      const v = parseFloat(prompt("1유로 = 몇 원?", db.rate));
+      if (v > 0){ db.rate = v; db.rateAt = "직접 입력"; save(); render(); }
+    };
+    box.append(rf, rm); rr.append(box); c.append(rr);
+  }
+
+  c.append(el("<label>대분류</label>"),
+           chips(Object.keys(CAT), draft.m, m => { draft.m = m; draft.s = CAT[m][0]; render(); }),
+           el("<label>세부분류</label>"),
+           chips(CAT[draft.m], draft.s, s => { draft.s = s; render(); }));
+
+  if (draft.m === "데이트")
+    c.append(el("<label>누가 냈나</label>"), chips(PAYERS, draft.p, p => { draft.p = p; render(); }));
+
+  c.append(el("<label>날짜</label>"),
+           el('<input id="dt" type="date" value="' + (draft.d || today()) + '">'),
+           el("<label>메모 (선택)</label>"),
+           el('<input id="mm" type="text" placeholder="어디서 뭐 샀는지">'));
+
+  const btn = el('<button class="big">저장</button>');
+  btn.onclick = () => {
+    const raw = $("#amt").value;
+    const a = toKRW(raw, draft.cur, db.rate);
+    if (!a) return toast("금액을 입력하세요");
+    draft.d = $("#dt").value || today();
+    db.tx.push({ id: crypto.randomUUID(), d: draft.d, m: draft.m, s: draft.s,
+                 p: draft.m === "데이트" ? draft.p : "나", a,
+                 cur: draft.cur, orig: eur ? parseFloat(raw) : null,
+                 memo: $("#mm").value.trim() });
+    save(); render();
+    toast((eur ? "€" + parseFloat(raw) + " = " : "") + won(a) + "원 저장됨");
+  };
+  c.append(btn);
+  v.append(c);
+
+  const amt = $("#amt"), conv = $("#conv");
+  amt.oninput = () => {
+    if (eur){
+      let n = amt.value.replace(/[^0-9.]/g, "");
+      const i = n.indexOf(".");                                  // 소수점은 하나, 뒤 2자리까지
+      if (i >= 0) n = n.slice(0, i + 1) + n.slice(i + 1).replace(/\./g, "").slice(0, 2);
+      amt.value = n;
+      const k = toKRW(n, "€", db.rate);
+      conv.textContent = k ? "= 약 " + won(k) + "원" : "";
+    } else {
+      const n = amt.value.replace(/[^0-9]/g, "");
+      amt.value = n ? won(parseInt(n, 10)) : "";
+      conv.textContent = "";
+    }
+  };
+}
+
+/* ---- 내역 ---- */
+function viewList(v){
+  const s = summarize(db.tx, db.fixed, $("#ym").value);
+  const c = el('<div class="card"></div>');
+  c.append(el("<h2>변동비 " + s.rows.length + "건 · " + won(s.varTotal) + "원</h2>"));
+  if (!s.rows.length) c.append(el('<div class="empty">이 달 내역이 없습니다</div>'));
+
+  for (const t of s.rows){
+    const r = el('<div class="row"></div>');
+    let tag = t.m === "데이트" ? t.m + " · " + t.s + " · " + t.p : t.m + " · " + t.s;
+    if (t.cur === "€") tag += " · €" + t.orig;
+    r.append(el('<div class="l"><div class="t">' + esc(t.memo || t.s) + "</div>"
+      + '<div class="s">' + t.d.slice(5).replace("-", "/") + " · " + esc(tag) + "</div></div>"));
+    const right = el('<div style="display:flex;align-items:center;gap:4px"></div>');
+    right.append(el('<div class="amt">' + won(t.a) + "</div>"));
+    const x = el('<button class="del">×</button>');
+    x.onclick = () => { if (confirm("삭제할까요?")){ db.tx = db.tx.filter(z => z.id !== t.id); save(); render(); } };
+    right.append(x); r.append(right); c.append(r);
+  }
+  v.append(c, backupCard());
+}
+
+/* ---- 통계 ---- */
+function viewStat(v){
+  const ym = $("#ym").value;
+  const s  = summarize(db.tx, db.fixed, ym);
+
+  v.append(el('<div class="card"><h2>' + ym.replace("-", "년 ") + "월 총 지출</h2>"
+    + '<div class="big-num">' + won(s.total) + "원</div>"
+    + '<div class="note">변동비 ' + won(s.varTotal) + " + 고정비 " + won(s.fixedTotal) + "</div></div>"));
+
+  const c1 = el('<div class="card"><h2>대분류별</h2></div>');
+  const mx = Math.max(1, ...Object.values(s.byMain));
+  for (const [m, a] of Object.entries(s.byMain)) c1.append(barRow(m, a, mx));
+  v.append(c1);
+
+  const c2 = el('<div class="card"><h2>데이트 — 누가 얼마나</h2></div>');
+  const sp = el('<div class="split"></div>');
+  for (const p of PAYERS) sp.append(el('<div class="pill">' + esc(p) + "<b>" + won(s.byPayer[p]) + "</b></div>"));
+  c2.append(sp);
+  const diff = Math.abs(s.byPayer[PAYERS[0]] - s.byPayer[PAYERS[1]]);
+  const more = s.byPayer[PAYERS[0]] >= s.byPayer[PAYERS[1]] ? PAYERS[0] : PAYERS[1];
+  c2.append(el('<div class="note" style="text-align:center;font-size:13px;margin-top:10px">'
+    + (diff ? esc(more) + "가 " + won(diff) + "원 더 썼어요" : "정확히 반반이네요") + "</div>"));
+  v.append(c2);
+
+  const subs = Object.entries(s.bySub).sort((a,b) => b[1] - a[1]);
+  const c3 = el('<div class="card"><h2>데이트 세부분류</h2></div>');
+  if (!subs.length) c3.append(el('<div class="empty">데이트 지출이 없습니다</div>'));
+  const smx = Math.max(1, ...subs.map(x => x[1]));
+  for (const [k, a] of subs) c3.append(barRow(k, a, smx));
+  v.append(c3);
+
+  const months = [];
+  for (let i = 5; i >= 0; i--){
+    const d = new Date(ym + "-01T00:00:00");
+    d.setMonth(d.getMonth() - i);
+    const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+    months.push([k, summarize(db.tx, db.fixed, k).total]);
+  }
+  const mmx = Math.max(1, ...months.map(x => x[1]));
+  const c4 = el('<div class="card"><h2>최근 6개월</h2></div>');
+  for (const [k, a] of months) c4.append(barRow(k.slice(2), a, mmx));
+  v.append(c4);
+}
+
+/* ---- 고정비 ---- */
+function viewFix(v){
+  const c = el('<div class="card"></div>');
+  const tot = db.fixed.reduce((s,f) => s + f.a, 0);
+  c.append(el("<h2>매달 나가는 돈 · 합계 " + won(tot) + "원</h2>"));
+  if (!db.fixed.length) c.append(el('<div class="empty">고정비를 추가해보세요</div>'));
+
+  for (const f of db.fixed){
+    const r = el('<div class="row"></div>');
+    r.append(el('<div class="l"><div class="t">' + esc(f.name) + "</div>"
+      + '<div class="s">매달 ' + f.day + "일</div></div>"));
+    const right = el('<div style="display:flex;align-items:center;gap:4px"></div>');
+    right.append(el('<div class="amt">' + won(f.a) + "</div>"));
+    const x = el('<button class="del">×</button>');
+    x.onclick = () => { if (confirm("삭제할까요?")){ db.fixed = db.fixed.filter(z => z.id !== f.id); save(); render(); } };
+    right.append(x); r.append(right); c.append(r);
+  }
+  v.append(c);
+
+  const f = el('<div class="card"><h2>고정비 추가</h2></div>');
+  f.append(el("<label>이름</label>"), el('<input id="fn" placeholder="월세 / 통신비 / 구독료">'),
+           el("<label>금액</label>"), el('<input id="fa" inputmode="numeric" placeholder="0">'),
+           el("<label>결제일</label>"), el('<input id="fd" type="number" min="1" max="31" value="25">'));
+  const b = el('<button class="big">추가</button>');
+  b.onclick = () => {
+    const name = $("#fn").value.trim();
+    const a = parseInt(($("#fa").value || "").replace(/[^0-9]/g, ""), 10);
+    if (!name || !a) return toast("이름과 금액을 입력하세요");
+    db.fixed.push({ id: crypto.randomUUID(), name, a,
+                    day: Math.min(31, Math.max(1, parseInt($("#fd").value, 10) || 1)) });
+    save(); render(); toast("추가됨");
+  };
+  f.append(b); v.append(f);
+}
+
+/* ---- 백업 ---- */
+function backupCard(){
+  const c = el('<div class="card"><h2>백업 — 사파리 데이터 지우면 날아갑니다</h2></div>');
+  const box = el('<div class="split"></div>');
+
+  const ex = el('<button class="ghost">내보내기</button>');
+  ex.onclick = () => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type:"application/json" }));
+    a.download = "moneybook-" + today() + ".json";
+    a.click();
+  };
+
+  const im = el('<button class="ghost">불러오기</button>');
+  im.onclick = () => {
+    const i = document.createElement("input"); i.type = "file"; i.accept = ".json,application/json";
+    i.onchange = () => {
+      const r = new FileReader();
+      r.onload = () => {
+        try {
+          const j = JSON.parse(r.result);
+          if (!Array.isArray(j.tx)) throw new Error("bad");
+          db = { tx: j.tx, fixed: Array.isArray(j.fixed) ? j.fixed : [] };
+          save(); render(); toast("불러왔습니다");
+        } catch(e){ toast("파일이 이상해요"); }
+      };
+      r.readAsText(i.files[0]);
+    };
+    i.click();
+  };
+
+  box.append(ex, im); c.append(box);
+  return c;
+}
+
+function render(){
+  const v = $("#view"); v.innerHTML = "";
+  ({ add: viewAdd, list: viewList, stat: viewStat, fix: viewFix })[tab](v);
+  document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+$("#ym").value = today().slice(0, 7);
+$("#ym").onchange = render;
+
+/* ---- 자가검증: 주소 끝에 #test 붙이고 새로고침 ---- */
+function runTests(){
+  const out = [];
+  const ok = (name, cond) => out.push((cond ? "OK   " : "FAIL ") + name);
+  const tx = [
+    { id:"1", d:"2026-09-03", m:"데이트", s:"식사", p:"나",       a:30000, memo:"" },
+    { id:"2", d:"2026-09-10", m:"데이트", s:"카페", p:"여자친구", a:12000, memo:"" },
+    { id:"3", d:"2026-09-10", m:"데이트", s:"식사", p:"여자친구", a: 8000, memo:"" },
+    { id:"4", d:"2026-09-15", m:"개인",   s:"취미", p:"나",       a:50000, memo:"" },
+    { id:"5", d:"2026-08-15", m:"대출금", s:"이자", p:"나",       a:90000, memo:"" }
+  ];
+  const fx = [{ id:"f1", name:"월세", a:400000, day:25 }];
+  const s = summarize(tx, fx, "2026-09");
+
+  ok("9월 건수만 집계 (4건)",        s.rows.length === 4);
+  ok("변동비 합 100,000",            s.varTotal === 100000);
+  ok("고정비 합 400,000",            s.fixedTotal === 400000);
+  ok("총합 500,000",                 s.total === 500000);
+  ok("데이트 50,000",                s.byMain["데이트"] === 50000);
+  ok("개인 50,000",                  s.byMain["개인"] === 50000);
+  ok("8월건 제외 (대출금 0)",        s.byMain["대출금"] === 0);
+  ok("내 결제 30,000",               s.byPayer["나"] === 30000);
+  ok("여친 결제 20,000",             s.byPayer["여자친구"] === 20000);
+  ok("데이트 식사 38,000 (둘 합산)",  s.bySub["식사"] === 38000);
+  ok("개인지출은 결제자 집계 제외",   s.byPayer["나"] !== 80000);
+  ok("데이트 아닌 세부분류 미포함",   s.bySub["취미"] === undefined);
+  ok("빈 달도 안전",                 summarize([], [], "2026-01").total === 0);
+  ok("최신순 정렬",                  s.rows[0].d === "2026-09-15");
+
+  ok("€12.50 x1450 = 18,125원",      toKRW("12.50", "€", 1450) === 18125);
+  ok("€0.99 반올림",                 toKRW("0.99", "€", 1450) === 1436);
+  ok("원화는 환율 무시",             toKRW("1,200", "₩", 1450) === 1200);
+  ok("빈 입력은 0",                  toKRW("", "₩", 1450) === 0);
+  ok("글자만 입력은 0",              toKRW("abc", "€", 1450) === 0);
+  ok("환율 바뀌면 결과도 바뀜",       toKRW("10", "€", 1500) === 15000);
+
+  const pass = out.every(x => x.startsWith("OK"));
+  document.body.innerHTML = '<pre style="padding:20px;font-size:14px;line-height:2">'
+    + out.join("\n") + "\n\n" + (pass ? "전부 통과" : "실패 있음") + "</pre>";
+  return pass;
+}
+
+if (location.hash === "#test") { runTests(); }
+else {
+  render();
+  if (db.rateAt !== today()) fetchRate(false);   // 하루 한 번 조용히 환율 갱신
+}
+</script>
+</body>
+</html>
