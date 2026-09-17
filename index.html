@@ -218,14 +218,20 @@ function summarize(tx, fixed, ym){
   return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, total: varTotal + fixedTotal };
 }
 
-/* 대출 하나의 현재 상태. 잔금 = 총액 - 지금까지 갚은 원금 */
+/* 대출은 빌린 통화 그대로 관리한다. 환율이 움직여도 € 빚은 € 그대로이므로
+   유로 대출의 잔금·이자는 전부 €로 계산하고, 원화 환산은 보여줄 때만 한다.
+   t.la = 그 대출의 통화로 본 금액 (t.a 는 항상 원화) */
 function loanState(loan, tx){
   const mine = tx.filter(t => t.loan === loan.id);
-  const sum = a => a.reduce((s,t) => s + t.a, 0);
+  const cents = loan.cur === "€";
+  const rnd = v => cents ? Math.round(v * 100) / 100 : Math.round(v);
+  const val = t => t.la != null ? t.la : t.a;              // la 없는 옛 기록은 원화로 본다
+  const sum = a => rnd(a.reduce((s,t) => s + val(t), 0));
+
   const paidPrincipal = sum(mine.filter(t => t.s === "원금"));
   const paidInterest  = sum(mine.filter(t => t.s === "이자"));
-  const balance = Math.max(0, loan.principal - paidPrincipal);
-  const monthlyInterest = Math.round(balance * (loan.rate / 100) / 12);
+  const balance = Math.max(0, rnd(loan.principal - paidPrincipal));
+  const monthlyInterest = rnd(balance * (loan.rate / 100) / 12);
   const progress = loan.principal > 0 ? paidPrincipal / loan.principal : 0;
   return { balance, monthlyInterest, paidPrincipal, paidInterest, progress, done: balance === 0 };
 }
@@ -233,10 +239,17 @@ function loanState(loan, tx){
 /* 이번 달 상환액을 이자/원금으로 쪼갬. 월상환액 없으면 이자만 내는 대출로 본다 */
 function splitPayment(loan, tx){
   const st = loanState(loan, tx);
+  const rnd = v => loan.cur === "€" ? Math.round(v * 100) / 100 : Math.round(v);
   const total = loan.monthly > 0 ? loan.monthly : st.monthlyInterest;
   const interest = Math.min(st.monthlyInterest, total);
-  const principal = Math.min(st.balance, Math.max(0, total - interest));
-  return { total: interest + principal, interest, principal };
+  const principal = Math.min(st.balance, Math.max(0, rnd(total - interest)));
+  return { total: rnd(interest + principal), interest, principal };
+}
+
+/* 통화에 맞는 표기 */
+function fmt(n, cur){
+  return cur === "€" ? "€" + Number(n).toLocaleString("ko-KR", { maximumFractionDigits:2 })
+                     : won(n) + "원";
 }
 
 /* 입력한 글자 -> 원화 정수. 유로면 환율 적용 */
@@ -282,13 +295,20 @@ function donut(parts){
 
 /* ───────────── 입력 ───────────── */
 function viewAdd(v){
-  const eur = draft.cur === "€";
   const isLoan = draft.m === "대출금";
+  const aLoan = isLoan ? db.loans.find(l => l.id === draft.loan) : null;
+  const cur = aLoan ? aLoan.cur : draft.cur;      // 대출을 고르면 그 대출의 통화로 잠긴다
+  const eur = cur === "€";
   const c = el('<div class="card"></div>');
 
-  c.append(el("<label>통화</label>"),
-           chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }, true),
-           el("<label>금액 (" + draft.cur + ")</label>"),
+  if (aLoan)
+    c.append(el('<div class="note" style="margin:0 0 12px">' + esc(aLoan.name)
+      + "은 " + aLoan.cur + " 대출이라 " + aLoan.cur + "로 기록됩니다</div>"));
+  else
+    c.append(el("<label>통화</label>"),
+             chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }, true));
+
+  c.append(el("<label>금액 (" + cur + ")</label>"),
            el('<input id="amt" type="text" inputmode="' + (eur ? "decimal" : "numeric") + '" placeholder="0">'),
            el('<div id="conv" class="note"></div>'));
 
@@ -328,16 +348,18 @@ function viewAdd(v){
   const btn = el('<button class="big">저장</button>');
   btn.onclick = () => {
     const raw = $("#amt").value;
-    const a = toKRW(raw, draft.cur, db.rate);
+    const a = toKRW(raw, cur, db.rate);
     if (!a) return toast("금액을 입력하세요");
     if (isLoan && db.loans.length && !draft.loan) return toast("어느 대출인지 고르세요");
     draft.d = $("#dt").value || today();
+    const native = eur ? parseFloat(raw.replace(/,/g, "")) : a;
     db.tx.push({ id: crypto.randomUUID(), d: draft.d, m: draft.m, s: draft.s,
                  p: draft.m === "데이트" ? draft.p : "나", a,
-                 cur: draft.cur, orig: eur ? parseFloat(raw) : null,
-                 loan: isLoan ? draft.loan : null, memo: $("#mm").value.trim() });
+                 cur, orig: eur ? native : null,
+                 loan: aLoan ? aLoan.id : null, la: aLoan ? native : null,
+                 memo: $("#mm").value.trim() });
     save(); render();
-    toast((eur ? "€" + parseFloat(raw) + " = " : "") + won(a) + "원 저장");
+    toast((eur ? "€" + native + " = " : "") + won(a) + "원 저장");
   };
   c.append(btn);
   v.append(c);
@@ -462,44 +484,54 @@ function viewStat(v){
 /* ───────────── 대출 ───────────── */
 function viewLoan(v){
   const states = db.loans.map(l => ({ loan: l, st: loanState(l, db.tx) }));
-  const totalBal  = states.reduce((s,x) => s + x.st.balance, 0);
-  const totalInt  = states.reduce((s,x) => s + x.st.monthlyInterest, 0);
-  const totalOrig = db.loans.reduce((s,l) => s + l.principal, 0);
-  const paid = totalOrig - totalBal;
+  const krw = (n, l) => l.cur === "€" ? n * db.rate : n;    // 합계는 오늘 환율로 원화 환산
+  const totalBal  = states.reduce((s,x) => s + krw(x.st.balance, x.loan), 0);
+  const totalInt  = states.reduce((s,x) => s + krw(x.st.monthlyInterest, x.loan), 0);
+  const totalOrig = db.loans.reduce((s,l) => s + krw(l.principal, l), 0);
+  const paid = Math.max(0, totalOrig - totalBal);
+  const hasEur = db.loans.some(l => l.cur === "€");
 
   v.append(el('<div class="hero" style="background:linear-gradient(140deg,#d97706,#b45309 60%,#92400e)">'
     + '<div class="cap">남은 대출 잔금</div>'
     + '<div class="v num">' + won(totalBal) + '<span style="font-size:22px">원</span></div>'
     + '<div class="sub"><div>월 이자<b class="num">' + won(totalInt) + "</b></div>"
     + '<div>갚은 원금<b class="num">' + won(paid) + "</b></div>"
-    + '<div>대출 수<b class="num">' + db.loans.length + "</b></div></div></div>"));
+    + '<div>대출 수<b class="num">' + db.loans.length + "</b></div></div>"
+    + (hasEur ? '<div class="cap" style="margin-top:10px">유로 대출은 오늘 환율 '
+        + won(db.rate) + "원 기준으로 합산했습니다</div>" : "") + "</div>"));
 
   if (!db.loans.length)
     v.append(el('<div class="card"><div class="empty">대출을 등록하면 잔금과 월 이자가<br>자동으로 계산됩니다</div></div>'));
 
   for (const { loan, st } of states){
     const c = el('<div class="card"></div>');
+    const E = loan.cur === "€";
     c.append(el('<div class="row bare"><div class="l"><div>'
       + '<div class="t" style="font-size:17px">' + esc(loan.name)
+      + (E ? ' <span style="color:var(--ac);font-size:12px">€</span>' : "")
       + (st.done ? ' <span style="color:var(--pos);font-size:12px">완납</span>' : "") + "</div>"
       + '<div class="s">연 ' + loan.rate + "% · 매달 " + loan.day + "일</div></div></div>"
-      + '<div style="text-align:right"><div class="amt" style="font-size:19px">' + won(st.balance) + "</div>"
-      + '<div class="s">/ ' + won(loan.principal) + "</div></div></div>"));
+      + '<div style="text-align:right"><div class="amt" style="font-size:19px">'
+      + fmt(st.balance, loan.cur) + "</div>"
+      + '<div class="s">/ ' + fmt(loan.principal, loan.cur)
+      + (E ? "<br>≈ " + won(st.balance * db.rate) + "원" : "") + "</div></div></div>"));
 
     c.append(el('<div class="bar" style="margin-top:12px"><i style="width:'
       + (st.progress * 100) + '%;background:' + (st.done ? "var(--pos)" : HUE["대출금"]) + '"></i></div>'
       + '<div class="s" style="margin-top:6px">' + Math.round(st.progress * 100) + "% 상환</div>"));
 
     const sp = el('<div class="split" style="margin-top:14px"></div>');
-    sp.append(el('<div class="pill"><i>월 이자</i><b>' + won(st.monthlyInterest) + "</b></div>"),
-              el('<div class="pill"><i>낸 이자 누적</i><b>' + won(st.paidInterest) + "</b></div>"));
+    sp.append(el('<div class="pill"><i>월 이자</i><b>' + fmt(st.monthlyInterest, loan.cur) + "</b></div>"),
+              el('<div class="pill"><i>낸 이자 누적</i><b>' + fmt(st.paidInterest, loan.cur) + "</b></div>"));
     c.append(sp);
 
     if (!st.done){
       const pay = splitPayment(loan, db.tx);
       const act = el('<div class="row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);border-bottom:0"></div>');
-      act.append(el('<div class="s">이번 달 낼 돈 <b class="num" style="color:var(--fg)">' + won(pay.total)
-        + '</b>원<br>이자 ' + won(pay.interest) + " + 원금 " + won(pay.principal) + "</div>"));
+      act.append(el('<div class="s">이번 달 낼 돈 <b class="num" style="color:var(--fg)">'
+        + fmt(pay.total, loan.cur) + "</b>"
+        + (E ? " ≈ " + won(pay.total * db.rate) + "원" : "")
+        + "<br>이자 " + fmt(pay.interest, loan.cur) + " + 원금 " + fmt(pay.principal, loan.cur) + "</div>"));
       const b = el('<button class="ghost acc">상환 기록</button>');
       b.onclick = () => repay(loan);
       act.append(b); c.append(act);
@@ -514,38 +546,49 @@ function viewLoan(v){
     v.append(c);
   }
 
+  const LC = viewLoan.cur || "₩";                 // 등록 폼에서 고른 통화
   const f = el('<div class="card"><h2>대출 등록</h2></div>');
-  f.append(el("<label>이름</label>"), el('<input id="ln" placeholder="전세자금 / 학자금 / 차량">'),
-           el("<label>총액 (원금)</label>"), el('<input id="lp" inputmode="numeric" placeholder="0">'),
+  f.append(el("<label>어느 나라 돈으로 빌렸나</label>"),
+           chips(["₩ 원화","€ 유로"], LC === "€" ? "€ 유로" : "₩ 원화",
+                 x => { viewLoan.cur = x[0]; render(); }, true),
+           el("<label>이름</label>"), el('<input id="ln" placeholder="전세자금 / 독일 대출 / 차량">'),
+           el("<label>총액 — 빌린 원금 (" + LC + ")</label>"),
+           el('<input id="lp" inputmode="decimal" placeholder="0">'),
            el("<label>연 이자율 (%)</label>"), el('<input id="lr" inputmode="decimal" placeholder="3.5">'),
            el("<label>매달 상환일</label>"), el('<input id="ld" type="number" min="1" max="31" value="25">'),
-           el("<label>월 상환액 — 비워두면 이자만 내는 대출로 봅니다</label>"),
-           el('<input id="lm" inputmode="numeric" placeholder="비워두면 이자만">'));
+           el("<label>월 상환액 (" + LC + ") — 비워두면 이자만 내는 대출로 봅니다</label>"),
+           el('<input id="lm" inputmode="decimal" placeholder="비워두면 이자만">'));
   const b = el('<button class="big">등록</button>');
   b.onclick = () => {
     const name = $("#ln").value.trim();
-    const principal = toKRW($("#lp").value, "₩", 1);
-    const rate = parseFloat($("#lr").value) || 0;
+    const numOf = s => parseFloat(String(s).replace(/,/g, "").replace(/[^0-9.]/g, "")) || 0;
+    const principal = numOf($("#lp").value);
     if (!name || !principal) return toast("이름과 총액을 입력하세요");
-    db.loans.push({ id: crypto.randomUUID(), name, principal, rate,
+    db.loans.push({ id: crypto.randomUUID(), name, principal, cur: LC,
+                    rate: parseFloat($("#lr").value) || 0,
                     day: Math.min(31, Math.max(1, parseInt($("#ld").value, 10) || 1)),
-                    monthly: toKRW($("#lm").value, "₩", 1), start: today() });
-    save(); render(); toast(name + " 등록됨");
+                    monthly: numOf($("#lm").value), start: today() });
+    viewLoan.cur = "₩"; save(); render(); toast(name + " 등록됨");
   };
   f.append(b); v.append(f);
 }
 
 function repay(loan){
   const pay = splitPayment(loan, db.tx);
+  const E = loan.cur === "€";
   if (!pay.total) return toast("낼 금액이 0원입니다");
-  if (!confirm(loan.name + " 상환 기록\n\n이자  " + won(pay.interest) + "원\n원금  "
-      + won(pay.principal) + "원\n────────\n합계  " + won(pay.total) + "원\n\n기록할까요?")) return;
+  if (!confirm(loan.name + " 상환 기록\n\n이자  " + fmt(pay.interest, loan.cur)
+      + "\n원금  " + fmt(pay.principal, loan.cur)
+      + "\n────────\n합계  " + fmt(pay.total, loan.cur)
+      + (E ? "\n       ≈ " + won(pay.total * db.rate) + "원 (오늘 환율)" : "")
+      + "\n\n기록할까요?")) return;
   const d = today();
-  const add = (s, a) => a && db.tx.push({ id: crypto.randomUUID(), d, m:"대출금", s, p:"나", a,
-    cur:"₩", orig:null, loan: loan.id, memo: loan.name + " " + s });
+  const add = (s, la) => la && db.tx.push({ id: crypto.randomUUID(), d, m:"대출금", s, p:"나",
+    a: E ? Math.round(la * db.rate) : la, cur: loan.cur, orig: E ? la : null,
+    la, loan: loan.id, memo: loan.name + " " + s });
   add("이자", pay.interest);
   add("원금", pay.principal);
-  save(); render(); toast(won(pay.total) + "원 상환 기록됨");
+  save(); render(); toast(fmt(pay.total, loan.cur) + " 상환 기록됨");
 }
 
 /* ───────────── 설정 ───────────── */
@@ -755,8 +798,29 @@ function runTests(){
   // 마지막 회차: 월 상환액이 잔금보다 커도 초과 상환 안 됨
   const END = { id:"L4", name:"막판", principal:100000, rate:0, day:1, monthly:500000 };
   ok("초과 상환 방지",             splitPayment(END, []).principal === 100000);
-  const paidOff = loanState(END, [{ id:"z", s:"원금", a:100000, loan:"L4" }]);
+  const paidOff = loanState(END, [{ id:"z", s:"원금", a:100000, la:100000, loan:"L4" }]);
   ok("완납 인식",                  paidOff.done === true && paidOff.balance === 0);
+
+  // 유로 대출: €50,000, 연 4.8% -> 월 이자 €200. 월 상환액 €600
+  const DE = { id:"D1", name:"독일", principal:50000, cur:"€", rate:4.8, day:1, monthly:600 };
+  const d0 = loanState(DE, []);
+  ok("€ 잔금 50,000",              d0.balance === 50000);
+  ok("€ 월 이자 200",              d0.monthlyInterest === 200);
+  const dp = splitPayment(DE, []);
+  ok("€ 1회차 이자 200",           dp.interest === 200);
+  ok("€ 1회차 원금 400",           dp.principal === 400);
+
+  // 원화로 저장된 a 값에 속으면 안 된다 — la(유로)만 봐야 한다
+  const dtx = [{ id:"e", s:"원금", a:631200, la:400, loan:"D1" },
+               { id:"f", s:"이자", a:315600, la:200, loan:"D1" }];
+  const d1 = loanState(DE, dtx);
+  ok("€ 잔금은 원화에 안 휘둘림",   d1.balance === 49600);
+  ok("€ 낸 이자 누적 200",         d1.paidInterest === 200);
+  ok("€ 2회차 이자 198.4",         splitPayment(DE, dtx).interest === 198.4);
+  ok("€ 소수점 2자리 유지",        loanState({ id:"D2", cur:"€", principal:1000, rate:3.7 }, []).monthlyInterest === 3.08);
+  ok("원화 대출은 소수점 없음",     loanState({ id:"D3", cur:"₩", principal:1000000, rate:3.7 }, []).monthlyInterest === 3083);
+  ok("€ 표기",                     fmt(49600, "€") === "€49,600");
+  ok("₩ 표기",                     fmt(49600, "₩") === "49,600원");
 
   const pass = out.every(x => x.startsWith("OK"));
   document.body.innerHTML = '<pre style="padding:20px;font-size:13px;line-height:1.9">'
