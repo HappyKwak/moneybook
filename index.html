@@ -605,43 +605,79 @@ function backupWarn(v){
   w.append(b); v.append(w);
 }
 
+/* 아이폰 홈 화면 앱은 파일 다운로드가 막혀 있어서 공유 시트가 유일하게 확실한 길.
+   취소하면 백업한 걸로 치지 않는다 — 안 했는데 했다고 표시되면 그게 제일 위험하다. */
 function exportJSON(){
-  db.backupAt = today(); save();
+  const name = "가계부-" + today() + ".json";
+  const file = new File([JSON.stringify(db)], name, { type:"application/json" });
+  const done = m => { db.backupAt = today(); save(); render(); toast(m); };
+
+  if (navigator.canShare && navigator.canShare({ files:[file] })){
+    navigator.share({ files:[file] })
+      .then(() => done("저장됐으면 파일 앱에서 확인하세요"))
+      .catch(() => {});                       // 취소 — backupAt 그대로 둔다
+    return;
+  }
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type:"application/json" }));
-  a.download = "가계부-" + today() + ".json";
+  a.href = URL.createObjectURL(file);
+  a.download = name;
   a.click();
-  render(); toast("파일 앱에 저장하세요");
+  done("파일로 저장됐습니다");
+}
+
+/* 백업 글/파일 -> 실제 복원. 형식이 조금이라도 이상하면 아무것도 건드리지 않는다 */
+function restore(text){
+  let j;
+  try { j = JSON.parse(text); } catch(e){ return toast("백업 내용이 깨졌어요"); }
+  if (!j || !Array.isArray(j.tx)) return toast("가계부 백업 파일이 아닙니다");
+  if ((db.tx.length || db.loans.length) &&
+      !confirm("지금 데이터를 덮어씁니다.\n\n지금: 지출 " + db.tx.length + "건\n"
+             + "백업: 지출 " + j.tx.length + "건\n\n계속할까요?")) return;
+  db = {
+    tx: j.tx,
+    fixed: Array.isArray(j.fixed) ? j.fixed : [],
+    loans: Array.isArray(j.loans) ? j.loans : [],
+    rate: j.rate || DEFAULT_RATE, rateAt: j.rateAt || "", backupAt: j.backupAt || ""
+  };
+  save(); render();
+  toast("지출 " + j.tx.length + "건 복원됨");
+}
+
+/* 공유도 다운로드도 안 될 때의 마지막 수단 */
+function copyJSON(){
+  const text = JSON.stringify(db);
+  const fin = () => { db.backupAt = today(); save(); render();
+                      toast("복사됨 — 메모장이나 카톡 내게쓰기에 붙여넣으세요"); };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(fin).catch(() => toast("복사 실패"));
+  else toast("복사 안 되는 브라우저입니다");
 }
 
 function backupCard(){
   const c = el('<div class="card"><h2>백업</h2></div>');
+  c.append(el('<div class="note" style="margin:0 0 6px">현재 지출 ' + db.tx.length + "건 · 대출 "
+    + db.loans.length + "건 · 고정비 " + db.fixed.length + "건</div>"));
   c.append(el('<div class="note" style="margin:0 0 14px">서버가 없어서 데이터는 이 폰 안에만 있습니다. '
-    + "설정 → Safari → 방문 기록 및 데이터 지우기를 누르면 복구할 방법이 없습니다.<br>"
-    + (db.backupAt ? "마지막 백업: " + db.backupAt : "백업한 적 없음") + "</div>"));
+    + "설정 → Safari → 방문 기록 및 데이터 지우기를 누르면 복구할 방법이 없습니다.<br><b>"
+    + (db.backupAt ? "마지막 백업: " + db.backupAt : "아직 백업한 적 없음") + "</b></div>"));
   const box = el('<div class="split"></div>');
   const ex = el('<button class="ghost acc">내보내기</button>'); ex.onclick = exportJSON;
+  const cp = el('<button class="ghost">복사</button>'); cp.onclick = copyJSON;
   const im = el('<button class="ghost">불러오기</button>');
   im.onclick = () => {
-    const i = document.createElement("input"); i.type = "file"; i.accept = ".json,application/json";
-    i.onchange = () => {
-      const rd = new FileReader();
-      rd.onload = () => {
-        try {
-          const j = JSON.parse(rd.result);
-          if (!Array.isArray(j.tx)) throw new Error("bad");
-          if (db.tx.length && !confirm("지금 데이터를 덮어씁니다. 계속할까요?")) return;
-          db = Object.assign(load.call(null), j, { tx: j.tx });
-          db.fixed = Array.isArray(j.fixed) ? j.fixed : [];
-          db.loans = Array.isArray(j.loans) ? j.loans : [];
-          save(); render(); toast("불러왔습니다");
-        } catch(e){ toast("파일이 이상해요"); }
-      };
-      rd.readAsText(i.files[0]);
-    };
-    i.click();
+    if (confirm("어디서 불러올까요?\n\n확인 = 파일에서\n취소 = 복사해둔 글 붙여넣기")){
+      const i = document.createElement("input"); i.type = "file"; i.accept = ".json,application/json";
+      i.onchange = () => { const rd = new FileReader();
+                           rd.onload = () => restore(rd.result); rd.readAsText(i.files[0]); };
+      i.click();
+    } else {
+      const t = prompt("백업해둔 글을 여기에 붙여넣으세요");
+      if (t) restore(t);
+    }
   };
-  box.append(ex, im); c.append(box);
+  box.append(ex, cp, im); c.append(box);
+  c.append(el('<div class="note" style="margin-top:12px">내보내기가 안 먹히면 <b>복사</b>를 쓰세요. '
+    + "카톡 '나에게 쓰기'에 붙여넣으면 그것도 훌륭한 백업입니다. "
+    + "되살릴 땐 그 글을 복사해서 <b>불러오기 → 붙여넣기</b>.</div>"));
   return c;
 }
 
