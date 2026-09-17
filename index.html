@@ -7,112 +7,179 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="가계부">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="theme-color" content="#4f46e5">
+<meta name="theme-color" content="#5b5bd6">
 <link rel="apple-touch-icon" href="icon.png">
 <title>가계부</title>
 <style>
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-:root{--bg:#f4f4f7;--card:#fff;--fg:#17171c;--mut:#8b8b96;--line:#e7e7ee;--ac:#4f46e5;--ac2:#eef0ff}
-@media(prefers-color-scheme:dark){:root{--bg:#0f0f13;--card:#1a1a21;--fg:#eeeef4;--mut:#8a8a94;--line:#2a2a34;--ac:#7c83f8;--ac2:#242438}}
-body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
-  background:var(--bg);color:var(--fg);padding-bottom:calc(72px + env(safe-area-inset-bottom))}
-header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);
-  padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;align-items:center;gap:10px}
-header h1{font-size:17px;margin:0;flex:1;font-weight:700;letter-spacing:-.3px}
-main{padding:16px;max-width:560px;margin:0 auto}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:12px}
-.card h2{font-size:13px;color:var(--mut);margin:0 0 12px;font-weight:600;letter-spacing:.2px}
-label{display:block;font-size:12px;color:var(--mut);margin:14px 0 6px;font-weight:600}
+:root{
+  --bg:#f6f6f9; --card:#fff; --fg:#111116; --mut:#6d6d79; --dim:#a0a0ad;
+  --line:#ededf3; --ac:#5b5bd6; --acs:#eeeefb; --pos:#0f9d6e;
+  --sh:0 1px 2px rgba(17,17,34,.05), 0 10px 30px -12px rgba(17,17,34,.14);
+}
+@media(prefers-color-scheme:dark){:root{
+  --bg:#0a0a0e; --card:#15151b; --fg:#f2f2f7; --mut:#9a9aa7; --dim:#63636f;
+  --line:#25252f; --ac:#8b8bf2; --acs:#1c1c2c; --pos:#3ddc9a;
+  --sh:0 1px 2px rgba(0,0,0,.4), 0 10px 30px -12px rgba(0,0,0,.6);
+}}
+body{margin:0;font:15px/1.55 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",system-ui,sans-serif;
+  background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;
+  padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+
+header{position:sticky;top:0;z-index:5;backdrop-filter:saturate(180%) blur(20px);
+  background:color-mix(in srgb, var(--bg) 82%, transparent);border-bottom:1px solid var(--line);
+  padding:calc(11px + env(safe-area-inset-top)) 18px 11px;display:flex;align-items:center;gap:10px}
+header h1{font-size:18px;margin:0;flex:1;font-weight:800;letter-spacing:-.03em}
+#ym{width:auto;padding:6px 10px;font-size:13px;font-weight:600;border-radius:9px;background:var(--card)}
+main{padding:16px;max-width:580px;margin:0 auto}
+
+.card{background:var(--card);border-radius:18px;padding:18px;margin-bottom:12px;box-shadow:var(--sh)}
+.card h2{font-size:12px;color:var(--dim);margin:0 0 14px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.07em}
+.hero{background:linear-gradient(140deg,#5b5bd6 0%,#7c3aed 55%,#9333ea 100%);
+  color:#fff;border-radius:20px;padding:22px;margin-bottom:12px;box-shadow:0 12px 32px -14px rgba(91,91,214,.7)}
+.hero .cap{font-size:12px;opacity:.72;font-weight:600;letter-spacing:.04em}
+.hero .v{font-size:38px;font-weight:800;letter-spacing:-.035em;margin:2px 0 12px;line-height:1.05}
+.hero .sub{display:flex;gap:18px;font-size:12.5px;opacity:.85}
+.hero .sub b{display:block;font-size:15px;font-weight:700;margin-top:1px}
+
+label{display:block;font-size:12px;color:var(--mut);margin:16px 0 7px;font-weight:700;letter-spacing:.01em}
 label:first-child{margin-top:0}
-input,select{width:100%;font:inherit;color:var(--fg);background:var(--bg);
-  border:1px solid var(--line);border-radius:10px;padding:11px 12px;-webkit-appearance:none}
-input:focus,select:focus{outline:2px solid var(--ac);outline-offset:-1px}
-#amt{font-size:30px;font-weight:700;text-align:right;padding:14px 12px;letter-spacing:-.5px}
+input{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1.5px solid transparent;
+  border-radius:12px;padding:12px 13px;-webkit-appearance:none;transition:border-color .12s}
+input:focus{outline:none;border-color:var(--ac)}
+#amt{font-size:34px;font-weight:800;text-align:right;padding:16px 15px;letter-spacing:-.04em;
+  font-variant-numeric:tabular-nums}
+
 .chips{display:flex;flex-wrap:wrap;gap:7px}
-.chip{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;
-  padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
-.chip.on{background:var(--ac);border-color:var(--ac);color:#fff;font-weight:600}
-button.big{width:100%;background:var(--ac);color:#fff;border:0;border-radius:12px;
-  padding:15px;font:inherit;font-size:16px;font-weight:700;margin-top:18px;cursor:pointer}
-button.ghost{background:none;border:1px solid var(--line);color:var(--fg);border-radius:9px;
-  padding:9px 12px;font:inherit;font-size:13px;cursor:pointer}
-.row{display:flex;justify-content:space-between;align-items:center;gap:10px;
-  padding:11px 0;border-bottom:1px solid var(--line)}
+.chip{border:1.5px solid var(--line);background:transparent;color:var(--mut);border-radius:11px;
+  padding:9px 14px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:.12s}
+.chip.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.chip.sm{padding:7px 12px;font-size:13px;border-radius:9px}
+
+button.big{width:100%;background:var(--ac);color:#fff;border:0;border-radius:14px;
+  padding:16px;font:inherit;font-size:16px;font-weight:800;margin-top:20px;cursor:pointer;
+  letter-spacing:-.01em;box-shadow:0 8px 20px -8px var(--ac)}
+button.big:active{transform:scale(.985)}
+button.ghost{background:var(--bg);border:1.5px solid var(--line);color:var(--fg);border-radius:10px;
+  padding:9px 13px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+button.ghost.acc{background:var(--acs);border-color:transparent;color:var(--ac)}
+
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:13px 0;border-bottom:1px solid var(--line)}
 .row:last-child{border-bottom:0}
-.row .l{min-width:0}
-.row .t{font-weight:600;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row .s{font-size:12px;color:var(--mut)}
-.amt{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
-.del{background:none;border:0;color:var(--mut);font-size:19px;padding:4px 6px;cursor:pointer}
-.big-num{font-size:34px;font-weight:800;letter-spacing:-1px;font-variant-numeric:tabular-nums}
-.bar{height:7px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:5px}
-.bar i{display:block;height:100%;background:var(--ac);border-radius:4px}
+.row.bare{border:0;padding:0}
+.l{min-width:0;display:flex;align-items:center;gap:11px}
+.t{font-weight:650;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em}
+.s{font-size:12.5px;color:var(--dim);margin-top:1px}
+.amt{font-weight:750;white-space:nowrap;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.dot{width:9px;height:9px;border-radius:3px;flex:0 0 auto}
+.del{background:none;border:0;color:var(--dim);font-size:15px;padding:6px 2px 6px 8px;cursor:pointer}
+
+.bar{height:8px;background:var(--line);border-radius:5px;overflow:hidden;margin-top:7px;display:flex}
+.bar i{display:block;height:100%;border-radius:5px;transition:width .3s}
+.cols{display:flex;align-items:flex-end;gap:8px;height:110px;margin-top:6px}
+.col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.col u{display:block;width:100%;background:var(--acs);border-radius:6px 6px 3px 3px;text-decoration:none;min-height:3px}
+.col.now u{background:var(--ac)}
+.col span{font-size:10.5px;color:var(--dim);font-weight:600}
+.col em{font-size:10px;color:var(--mut);font-style:normal;font-variant-numeric:tabular-nums}
+
+.legend{display:flex;flex-direction:column;gap:11px;flex:1;min-width:0}
+.donutwrap{display:flex;align-items:center;gap:18px}
 .split{display:flex;gap:10px}.split>*{flex:1}
-.pill{background:var(--ac2);color:var(--ac);border-radius:9px;padding:12px;text-align:center;font-size:13px}
-.pill b{display:block;font-size:19px;margin-top:3px;font-variant-numeric:tabular-nums}
-.empty{color:var(--mut);text-align:center;padding:28px 0;font-size:14px}
-.note{color:var(--mut);font-size:12px;margin-top:4px}
-nav{position:fixed;bottom:0;left:0;right:0;display:flex;background:var(--card);
-  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:6}
-nav button{flex:1;background:none;border:0;padding:11px 0 13px;font:inherit;font-size:11px;
-  color:var(--mut);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
-nav button.on{color:var(--ac);font-weight:700}
-nav span{font-size:20px;line-height:1}
-#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%) translateY(20px);
-  background:var(--fg);color:var(--bg);padding:11px 20px;border-radius:999px;font-size:14px;
-  font-weight:600;opacity:0;transition:.2s;pointer-events:none;z-index:9}
-#toast.on{opacity:1;transform:translateX(-50%)}
+.pill{background:var(--bg);border-radius:13px;padding:14px 12px;text-align:center}
+.pill i{font-style:normal;font-size:12px;color:var(--mut);font-weight:700}
+.pill b{display:block;font-size:19px;margin-top:4px;font-variant-numeric:tabular-nums;letter-spacing:-.03em}
+.empty{color:var(--dim);text-align:center;padding:30px 0;font-size:14px}
+.note{color:var(--dim);font-size:12.5px;margin-top:6px}
+.warn{background:#fff4e5;color:#8a5200;border-radius:13px;padding:13px 15px;font-size:13.5px;
+  font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:10px;line-height:1.4}
+@media(prefers-color-scheme:dark){.warn{background:#2e2312;color:#f5c26b}}
+.warn button{margin-left:auto;flex:0 0 auto}
+
+nav{position:fixed;bottom:0;left:0;right:0;display:flex;z-index:6;
+  backdrop-filter:saturate(180%) blur(20px);
+  background:color-mix(in srgb, var(--card) 88%, transparent);
+  border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:0;padding:9px 0 10px;font:inherit;font-size:10.5px;
+  font-weight:700;color:var(--dim);cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;gap:3px;letter-spacing:-.01em}
+nav button.on{color:var(--ac)}
+nav svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+nav button.on svg{stroke-width:2.3}
+
+#toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(16px) scale(.96);
+  background:var(--fg);color:var(--card);padding:12px 22px;border-radius:999px;font-size:14px;
+  font-weight:700;opacity:0;transition:.22s cubic-bezier(.3,1.4,.5,1);pointer-events:none;z-index:9;
+  box-shadow:0 10px 30px -8px rgba(0,0,0,.4);max-width:88%;text-align:center}
+#toast.on{opacity:1;transform:translateX(-50%) scale(1)}
 </style>
 </head>
 <body>
 
 <header>
   <h1>가계부</h1>
-  <input type="month" id="ym" style="width:auto;padding:7px 10px;font-size:14px">
+  <input type="month" id="ym">
 </header>
 
 <main id="view"></main>
 
 <nav>
-  <button data-tab="add" class="on"><span>➕</span>입력</button>
-  <button data-tab="list"><span>📋</span>내역</button>
-  <button data-tab="stat"><span>📊</span>통계</button>
-  <button data-tab="fix"><span>🔁</span>고정비</button>
+  <button data-tab="add"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8.2v7.6M8.2 12h7.6"/></svg>입력</button>
+  <button data-tab="list"><svg viewBox="0 0 24 24"><path d="M8.5 6.5h12M8.5 12h12M8.5 17.5h12M3.6 6.5h.01M3.6 12h.01M3.6 17.5h.01"/></svg>내역</button>
+  <button data-tab="stat"><svg viewBox="0 0 24 24"><path d="M4 20.2V13M12 20.2V4M20 20.2v-5"/></svg>통계</button>
+  <button data-tab="loan"><svg viewBox="0 0 24 24"><path d="M3 9.6l9-5.1 9 5.1M5 9.8V20h14V9.8M3 20h18M9.5 20v-5h5v5"/></svg>대출</button>
+  <button data-tab="set"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/><circle cx="9.5" cy="7" r="2.1"/><circle cx="15" cy="12" r="2.1"/><circle cx="8" cy="17" r="2.1"/></svg>설정</button>
 </nav>
 
 <div id="toast"></div>
 
 <script>
-/* ============ 여기만 고치면 분류가 바뀝니다 ============ */
+/* ═════════ 여기만 고치면 분류가 바뀝니다 ═════════ */
 const CAT = {
   "데이트" : ["식사","카페","주유비","쇼핑","선물","문화생활","여행","기타"],
   "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"],
   "대출금" : ["원금","이자","기타"]
 };
-const PAYERS = ["나","여자친구"];   // 데이트 비용 결제자
-const DEFAULT_RATE = 1578;          // 1유로 = ?원 (앱이 매일 자동으로 갱신함)
-/* ==================================================== */
+const PAYERS = ["나","여자친구"];
+const DEFAULT_RATE = 1578;        // 1유로 = ?원 (매일 자동 갱신)
+const BACKUP_WARN_DAYS = 14;      // 며칠 지나면 백업하라고 알릴지
+/* ═══════════════════════════════════════════════ */
+
+const HUE = { "데이트":"#f43f5e", "개인":"#5b5bd6", "대출금":"#f59e0b" };
+const FALLBACK = ["#06b6d4","#10b981","#8b5cf6","#ec4899","#84cc16","#f97316"];
+const hueOf = (name, i) => HUE[name] || FALLBACK[i % FALLBACK.length];
 
 const KEY = "moneybook";
 const $ = s => document.querySelector(s);
-const won = n => n.toLocaleString("ko-KR");
+const won = n => Math.round(n).toLocaleString("ko-KR");
 const ymOf = d => d.slice(0,7);
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
+const daysBetween = (a,b) => Math.floor((new Date(b) - new Date(a)) / 864e5);
 
 let db = load();
 let tab = "add";
-let draft = { m:"데이트", s:"식사", p:"나", cur:"₩" };
+let draft = { m:"데이트", s:"식사", p:"나", cur:"₩", loan:null };
 
 function load(){
-  const base = { tx:[], fixed:[], rate:DEFAULT_RATE, rateAt:"" };
+  const base = { tx:[], fixed:[], loans:[], rate:DEFAULT_RATE, rateAt:"", backupAt:"" };
   try {
     const r = JSON.parse(localStorage.getItem(KEY));
     if (r && Array.isArray(r.tx)) return Object.assign(base, r);
   } catch(e){}
   return base;
 }
+function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
 
-/* 유로 환율 — ECB 공시환율, 키 없이 무료. 실패하면 마지막 환율 그대로 씀 */
+function toast(msg){
+  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
+  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 1600);
+}
+
+/* 유로 환율 — ECB 공시환율, 키 없이 무료. 실패하면 마지막 환율 유지 */
 function fetchRate(loud){
   fetch("https://api.frankfurter.dev/v1/latest?base=EUR&symbols=KRW")
     .then(r => r.json())
@@ -124,17 +191,13 @@ function fetchRate(loud){
     })
     .catch(() => { if (loud) toast("환율 못 가져옴 — 직접 입력하세요"); });
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
 
-function toast(msg){
-  const t = $("#toast"); t.textContent = msg; t.classList.add("on");
-  clearTimeout(toast.h); toast.h = setTimeout(() => t.classList.remove("on"), 1400);
-}
+/* ═══════════ 순수 계산 함수 (주소 끝 #test 로 검증) ═══════════ */
 
-/* ---- 순수 집계 함수 (주소 끝에 #test 붙이면 자가검증) ---- */
 function summarize(tx, fixed, ym){
-  const rows = tx.filter(t => ymOf(t.d) === ym).sort((a,b) => b.d.localeCompare(a.d));
-  const sum  = a => a.reduce((s,t) => s + t.a, 0);
+  const rows = tx.filter(t => ymOf(t.d) === ym)
+                 .sort((a,b) => b.d.localeCompare(a.d) || b.id.localeCompare(a.id));
+  const sum = a => a.reduce((s,t) => s + t.a, 0);
 
   const byMain = {};
   for (const m of Object.keys(CAT)) byMain[m] = 0;
@@ -149,28 +212,50 @@ function summarize(tx, fixed, ym){
   for (const t of date) bySub[t.s] = (bySub[t.s] || 0) + t.a;
 
   // ponytail: 고정비는 등록돼 있으면 모든 달에 반영. 시작/종료 월이 필요해지면 f.from / f.to 추가.
-  // 유로 지출은 입력 시점 환율로 원화 변환해 저장하므로 여기서는 통화를 신경 쓸 필요가 없음.
+  // 유로 지출은 입력 시점 환율로 원화 변환해 저장하므로 여기서 통화를 신경 쓸 필요가 없음.
   const fixedTotal = sum(fixed);
   const varTotal   = sum(rows);
   return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, total: varTotal + fixedTotal };
 }
-/* -------------------------------------------------------- */
 
-/* 입력한 글자 -> 원화 정수. 유로면 환율 적용. (#test 로 검증) */
+/* 대출 하나의 현재 상태. 잔금 = 총액 - 지금까지 갚은 원금 */
+function loanState(loan, tx){
+  const mine = tx.filter(t => t.loan === loan.id);
+  const sum = a => a.reduce((s,t) => s + t.a, 0);
+  const paidPrincipal = sum(mine.filter(t => t.s === "원금"));
+  const paidInterest  = sum(mine.filter(t => t.s === "이자"));
+  const balance = Math.max(0, loan.principal - paidPrincipal);
+  const monthlyInterest = Math.round(balance * (loan.rate / 100) / 12);
+  const progress = loan.principal > 0 ? paidPrincipal / loan.principal : 0;
+  return { balance, monthlyInterest, paidPrincipal, paidInterest, progress, done: balance === 0 };
+}
+
+/* 이번 달 상환액을 이자/원금으로 쪼갬. 월상환액 없으면 이자만 내는 대출로 본다 */
+function splitPayment(loan, tx){
+  const st = loanState(loan, tx);
+  const total = loan.monthly > 0 ? loan.monthly : st.monthlyInterest;
+  const interest = Math.min(st.monthlyInterest, total);
+  const principal = Math.min(st.balance, Math.max(0, total - interest));
+  return { total: interest + principal, interest, principal };
+}
+
+/* 입력한 글자 -> 원화 정수. 유로면 환율 적용 */
 function toKRW(str, cur, rate){
   const n = parseFloat(String(str).replace(/,/g, "").replace(/[^0-9.]/g, ""));
   if (!n || !isFinite(n)) return 0;
   return cur === "€" ? Math.round(n * rate) : Math.round(n);
 }
+/* ══════════════════════════════════════════════════════════ */
 
-function el(html){ const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstChild; }
+function el(h){ const d = document.createElement("div"); d.innerHTML = h.trim(); return d.firstChild; }
 function esc(s){ return String(s).replace(/[&<>"]/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[m])); }
+function num(n){ return '<span class="num">' + won(n) + "</span>"; }
 
-function chips(items, cur, onPick){
+function chips(items, cur, onPick, small){
   const box = document.createElement("div"); box.className = "chips";
   for (const it of items){
     const b = document.createElement("button");
-    b.className = "chip" + (it === cur ? " on" : "");
+    b.className = "chip" + (small ? " sm" : "") + (it === cur ? " on" : "");
     b.textContent = it;
     b.onclick = () => onPick(it);
     box.appendChild(b);
@@ -178,41 +263,59 @@ function chips(items, cur, onPick){
   return box;
 }
 
-function barRow(name, amount, max){
-  return el('<div style="margin-bottom:12px"><div class="row" style="border:0;padding:0">'
-    + '<div class="t">' + esc(name) + '</div><div class="amt">' + won(amount) + '</div></div>'
-    + '<div class="bar"><i style="width:' + (amount / max * 100) + '%"></i></div></div>');
+function donut(parts){
+  const live = parts.filter(p => p.value > 0);
+  const total = live.reduce((s,p) => s + p.value, 0);
+  const R = 52, C = 2 * Math.PI * R;
+  let off = 0, segs = "";
+  for (const p of live){
+    const len = p.value / total * C;
+    segs += '<circle cx="64" cy="64" r="' + R + '" fill="none" stroke="' + p.color + '"'
+          + ' stroke-width="15" stroke-dasharray="' + len + ' ' + (C - len) + '"'
+          + ' stroke-dashoffset="' + (-off) + '" transform="rotate(-90 64 64)"/>';
+    off += len;
+  }
+  if (!live.length)
+    segs = '<circle cx="64" cy="64" r="' + R + '" fill="none" stroke="var(--line)" stroke-width="15"/>';
+  return '<svg viewBox="0 0 128 128" width="124" height="124" style="flex:0 0 auto">' + segs + "</svg>";
 }
 
-/* ---- 입력 ---- */
+/* ───────────── 입력 ───────────── */
 function viewAdd(v){
   const eur = draft.cur === "€";
+  const isLoan = draft.m === "대출금";
   const c = el('<div class="card"></div>');
+
   c.append(el("<label>통화</label>"),
-           chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }),
+           chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }, true),
            el("<label>금액 (" + draft.cur + ")</label>"),
            el('<input id="amt" type="text" inputmode="' + (eur ? "decimal" : "numeric") + '" placeholder="0">'),
            el('<div id="conv" class="note"></div>'));
 
   if (eur){
-    const rr = el('<div class="row" style="border:0;padding:8px 0 0"></div>');
-    rr.append(el('<div class="s">1 € = <b>' + won(db.rate) + "</b> 원"
-      + (db.rateAt ? " · " + db.rateAt : " · 기본값") + "</div>"));
+    const rr = el('<div class="row bare" style="margin-top:10px"></div>');
+    rr.append(el('<div class="s">1 € = <b class="num">' + won(db.rate) + "</b> 원 · "
+      + esc(db.rateAt || "기본값") + "</div>"));
     const box = el('<div style="display:flex;gap:6px"></div>');
-    const rf = el('<button class="ghost">갱신</button>');
-    rf.onclick = () => fetchRate(true);
+    const rf = el('<button class="ghost">갱신</button>'); rf.onclick = () => fetchRate(true);
     const rm = el('<button class="ghost">직접</button>');
     rm.onclick = () => {
-      const v = parseFloat(prompt("1유로 = 몇 원?", db.rate));
-      if (v > 0){ db.rate = v; db.rateAt = "직접 입력"; save(); render(); }
+      const x = parseFloat(prompt("1유로 = 몇 원?", db.rate));
+      if (x > 0){ db.rate = x; db.rateAt = "직접 입력"; save(); render(); }
     };
     box.append(rf, rm); rr.append(box); c.append(rr);
   }
 
   c.append(el("<label>대분류</label>"),
-           chips(Object.keys(CAT), draft.m, m => { draft.m = m; draft.s = CAT[m][0]; render(); }),
-           el("<label>세부분류</label>"),
-           chips(CAT[draft.m], draft.s, s => { draft.s = s; render(); }));
+           chips(Object.keys(CAT), draft.m, m => { draft.m = m; draft.s = CAT[m][0]; render(); }));
+
+  if (isLoan && db.loans.length){
+    c.append(el("<label>어느 대출</label>"),
+      chips(db.loans.map(l => l.name), (db.loans.find(l => l.id === draft.loan) || {}).name,
+            n => { draft.loan = db.loans.find(l => l.name === n).id; render(); }, true));
+  }
+
+  c.append(el("<label>세부분류</label>"), chips(CAT[draft.m], draft.s, s => { draft.s = s; render(); }));
 
   if (draft.m === "데이트")
     c.append(el("<label>누가 냈나</label>"), chips(PAYERS, draft.p, p => { draft.p = p; render(); }));
@@ -227,13 +330,14 @@ function viewAdd(v){
     const raw = $("#amt").value;
     const a = toKRW(raw, draft.cur, db.rate);
     if (!a) return toast("금액을 입력하세요");
+    if (isLoan && db.loans.length && !draft.loan) return toast("어느 대출인지 고르세요");
     draft.d = $("#dt").value || today();
     db.tx.push({ id: crypto.randomUUID(), d: draft.d, m: draft.m, s: draft.s,
                  p: draft.m === "데이트" ? draft.p : "나", a,
                  cur: draft.cur, orig: eur ? parseFloat(raw) : null,
-                 memo: $("#mm").value.trim() });
+                 loan: isLoan ? draft.loan : null, memo: $("#mm").value.trim() });
     save(); render();
-    toast((eur ? "€" + parseFloat(raw) + " = " : "") + won(a) + "원 저장됨");
+    toast((eur ? "€" + parseFloat(raw) + " = " : "") + won(a) + "원 저장");
   };
   c.append(btn);
   v.append(c);
@@ -242,7 +346,7 @@ function viewAdd(v){
   amt.oninput = () => {
     if (eur){
       let n = amt.value.replace(/[^0-9.]/g, "");
-      const i = n.indexOf(".");                                  // 소수점은 하나, 뒤 2자리까지
+      const i = n.indexOf(".");                          // 소수점 하나, 뒤 2자리까지
       if (i >= 0) n = n.slice(0, i + 1) + n.slice(i + 1).replace(/\./g, "").slice(0, 2);
       amt.value = n;
       const k = toKRW(n, "€", db.rate);
@@ -255,8 +359,9 @@ function viewAdd(v){
   };
 }
 
-/* ---- 내역 ---- */
+/* ───────────── 내역 ───────────── */
 function viewList(v){
+  backupWarn(v);
   const s = summarize(db.tx, db.fixed, $("#ym").value);
   const c = el('<div class="card"></div>');
   c.append(el("<h2>변동비 " + s.rows.length + "건 · " + won(s.varTotal) + "원</h2>"));
@@ -265,48 +370,76 @@ function viewList(v){
   for (const t of s.rows){
     const r = el('<div class="row"></div>');
     let tag = t.m === "데이트" ? t.m + " · " + t.s + " · " + t.p : t.m + " · " + t.s;
+    if (t.loan){ const L = db.loans.find(l => l.id === t.loan); if (L) tag += " · " + L.name; }
     if (t.cur === "€") tag += " · €" + t.orig;
-    r.append(el('<div class="l"><div class="t">' + esc(t.memo || t.s) + "</div>"
-      + '<div class="s">' + t.d.slice(5).replace("-", "/") + " · " + esc(tag) + "</div></div>"));
-    const right = el('<div style="display:flex;align-items:center;gap:4px"></div>');
+    r.append(el('<div class="l"><span class="dot" style="background:' + hueOf(t.m) + '"></span>'
+      + '<div><div class="t">' + esc(t.memo || t.s) + "</div>"
+      + '<div class="s">' + t.d.slice(5).replace("-", ".") + " · " + esc(tag) + "</div></div></div>"));
+    const right = el('<div style="display:flex;align-items:center"></div>');
     right.append(el('<div class="amt">' + won(t.a) + "</div>"));
-    const x = el('<button class="del">×</button>');
+    const x = el('<button class="del">✕</button>');
     x.onclick = () => { if (confirm("삭제할까요?")){ db.tx = db.tx.filter(z => z.id !== t.id); save(); render(); } };
     right.append(x); r.append(right); c.append(r);
   }
-  v.append(c, backupCard());
+  v.append(c);
 }
 
-/* ---- 통계 ---- */
+/* ───────────── 통계 ───────────── */
 function viewStat(v){
   const ym = $("#ym").value;
   const s  = summarize(db.tx, db.fixed, ym);
 
-  v.append(el('<div class="card"><h2>' + ym.replace("-", "년 ") + "월 총 지출</h2>"
-    + '<div class="big-num">' + won(s.total) + "원</div>"
-    + '<div class="note">변동비 ' + won(s.varTotal) + " + 고정비 " + won(s.fixedTotal) + "</div></div>"));
+  v.append(el('<div class="hero"><div class="cap">' + ym.replace("-", "년 ") + "월 총 지출</div>"
+    + '<div class="v num">' + won(s.total) + "<span style=\"font-size:22px\">원</span></div>"
+    + '<div class="sub"><div>변동비<b class="num">' + won(s.varTotal) + "</b></div>"
+    + '<div>고정비<b class="num">' + won(s.fixedTotal) + "</b></div>"
+    + '<div>건수<b class="num">' + s.rows.length + "</b></div></div></div>"));
 
-  const c1 = el('<div class="card"><h2>대분류별</h2></div>');
-  const mx = Math.max(1, ...Object.values(s.byMain));
-  for (const [m, a] of Object.entries(s.byMain)) c1.append(barRow(m, a, mx));
-  v.append(c1);
+  const parts = Object.keys(CAT).map((m, i) => ({ label: m, value: s.byMain[m], color: hueOf(m, i) }));
+  const c1 = el('<div class="card"><h2>어디에 썼나</h2></div>');
+  const dw = el('<div class="donutwrap"></div>');
+  dw.append(el(donut(parts)));
+  const lg = el('<div class="legend"></div>');
+  for (const p of parts){
+    const pct = s.varTotal ? Math.round(p.value / s.varTotal * 100) : 0;
+    lg.append(el('<div><div class="row bare"><div class="l">'
+      + '<span class="dot" style="background:' + p.color + '"></span>'
+      + '<span class="t">' + esc(p.label) + "</span></div>"
+      + '<div class="amt">' + won(p.value) + "</div></div>"
+      + '<div class="s" style="margin-left:20px">' + pct + "%</div></div>"));
+  }
+  dw.append(lg); c1.append(dw); v.append(c1);
 
   const c2 = el('<div class="card"><h2>데이트 — 누가 얼마나</h2></div>');
   const sp = el('<div class="split"></div>');
-  for (const p of PAYERS) sp.append(el('<div class="pill">' + esc(p) + "<b>" + won(s.byPayer[p]) + "</b></div>"));
+  for (const p of PAYERS)
+    sp.append(el('<div class="pill"><i>' + esc(p) + '</i><b>' + won(s.byPayer[p]) + "</b></div>"));
   c2.append(sp);
+  const dTot = s.byPayer[PAYERS[0]] + s.byPayer[PAYERS[1]];
+  if (dTot){
+    const w = s.byPayer[PAYERS[0]] / dTot * 100;
+    c2.append(el('<div class="bar" style="margin-top:12px">'
+      + '<i style="width:' + w + '%;background:' + HUE["데이트"] + '"></i>'
+      + '<i style="width:' + (100 - w) + '%;background:var(--ac)"></i></div>'));
+  }
   const diff = Math.abs(s.byPayer[PAYERS[0]] - s.byPayer[PAYERS[1]]);
   const more = s.byPayer[PAYERS[0]] >= s.byPayer[PAYERS[1]] ? PAYERS[0] : PAYERS[1];
-  c2.append(el('<div class="note" style="text-align:center;font-size:13px;margin-top:10px">'
-    + (diff ? esc(more) + "가 " + won(diff) + "원 더 썼어요" : "정확히 반반이네요") + "</div>"));
+  c2.append(el('<div class="note" style="text-align:center;margin-top:10px">'
+    + (!dTot ? "데이트 지출이 없습니다"
+             : diff ? esc(more) + "가 " + won(diff) + "원 더 썼어요" : "정확히 반반이네요") + "</div>"));
   v.append(c2);
 
   const subs = Object.entries(s.bySub).sort((a,b) => b[1] - a[1]);
-  const c3 = el('<div class="card"><h2>데이트 세부분류</h2></div>');
-  if (!subs.length) c3.append(el('<div class="empty">데이트 지출이 없습니다</div>'));
-  const smx = Math.max(1, ...subs.map(x => x[1]));
-  for (const [k, a] of subs) c3.append(barRow(k, a, smx));
-  v.append(c3);
+  if (subs.length){
+    const c3 = el('<div class="card"><h2>데이트 세부분류</h2></div>');
+    const smx = subs[0][1];
+    for (const [k, a] of subs)
+      c3.append(el('<div style="margin-bottom:13px"><div class="row bare">'
+        + '<span class="t">' + esc(k) + '</span><span class="amt">' + won(a) + "</span></div>"
+        + '<div class="bar"><i style="width:' + (a / smx * 100) + "%;background:"
+        + HUE["데이트"] + '"></i></div></div>'));
+    v.append(c3);
+  }
 
   const months = [];
   for (let i = 5; i >= 0; i--){
@@ -317,24 +450,119 @@ function viewStat(v){
   }
   const mmx = Math.max(1, ...months.map(x => x[1]));
   const c4 = el('<div class="card"><h2>최근 6개월</h2></div>');
-  for (const [k, a] of months) c4.append(barRow(k.slice(2), a, mmx));
-  v.append(c4);
+  const cols = el('<div class="cols"></div>');
+  for (const [k, a] of months)
+    cols.append(el('<div class="col' + (k === ym ? " now" : "") + '">'
+      + '<em>' + (a ? Math.round(a / 10000) + "만" : "") + "</em>"
+      + '<u style="height:' + Math.max(3, a / mmx * 82) + '%"></u>'
+      + "<span>" + Number(k.slice(5)) + "월</span></div>"));
+  c4.append(cols); v.append(c4);
 }
 
-/* ---- 고정비 ---- */
-function viewFix(v){
+/* ───────────── 대출 ───────────── */
+function viewLoan(v){
+  const states = db.loans.map(l => ({ loan: l, st: loanState(l, db.tx) }));
+  const totalBal  = states.reduce((s,x) => s + x.st.balance, 0);
+  const totalInt  = states.reduce((s,x) => s + x.st.monthlyInterest, 0);
+  const totalOrig = db.loans.reduce((s,l) => s + l.principal, 0);
+  const paid = totalOrig - totalBal;
+
+  v.append(el('<div class="hero" style="background:linear-gradient(140deg,#d97706,#b45309 60%,#92400e)">'
+    + '<div class="cap">남은 대출 잔금</div>'
+    + '<div class="v num">' + won(totalBal) + '<span style="font-size:22px">원</span></div>'
+    + '<div class="sub"><div>월 이자<b class="num">' + won(totalInt) + "</b></div>"
+    + '<div>갚은 원금<b class="num">' + won(paid) + "</b></div>"
+    + '<div>대출 수<b class="num">' + db.loans.length + "</b></div></div></div>"));
+
+  if (!db.loans.length)
+    v.append(el('<div class="card"><div class="empty">대출을 등록하면 잔금과 월 이자가<br>자동으로 계산됩니다</div></div>'));
+
+  for (const { loan, st } of states){
+    const c = el('<div class="card"></div>');
+    c.append(el('<div class="row bare"><div class="l"><div>'
+      + '<div class="t" style="font-size:17px">' + esc(loan.name)
+      + (st.done ? ' <span style="color:var(--pos);font-size:12px">완납</span>' : "") + "</div>"
+      + '<div class="s">연 ' + loan.rate + "% · 매달 " + loan.day + "일</div></div></div>"
+      + '<div style="text-align:right"><div class="amt" style="font-size:19px">' + won(st.balance) + "</div>"
+      + '<div class="s">/ ' + won(loan.principal) + "</div></div></div>"));
+
+    c.append(el('<div class="bar" style="margin-top:12px"><i style="width:'
+      + (st.progress * 100) + '%;background:' + (st.done ? "var(--pos)" : HUE["대출금"]) + '"></i></div>'
+      + '<div class="s" style="margin-top:6px">' + Math.round(st.progress * 100) + "% 상환</div>"));
+
+    const sp = el('<div class="split" style="margin-top:14px"></div>');
+    sp.append(el('<div class="pill"><i>월 이자</i><b>' + won(st.monthlyInterest) + "</b></div>"),
+              el('<div class="pill"><i>낸 이자 누적</i><b>' + won(st.paidInterest) + "</b></div>"));
+    c.append(sp);
+
+    if (!st.done){
+      const pay = splitPayment(loan, db.tx);
+      const act = el('<div class="row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);border-bottom:0"></div>');
+      act.append(el('<div class="s">이번 달 낼 돈 <b class="num" style="color:var(--fg)">' + won(pay.total)
+        + '</b>원<br>이자 ' + won(pay.interest) + " + 원금 " + won(pay.principal) + "</div>"));
+      const b = el('<button class="ghost acc">상환 기록</button>');
+      b.onclick = () => repay(loan);
+      act.append(b); c.append(act);
+    }
+
+    const del = el('<button class="ghost" style="margin-top:12px;width:100%">이 대출 삭제</button>');
+    del.onclick = () => {
+      if (!confirm(loan.name + " 삭제할까요?\n기록된 상환 내역은 그대로 남습니다.")) return;
+      db.loans = db.loans.filter(z => z.id !== loan.id); save(); render();
+    };
+    c.append(del);
+    v.append(c);
+  }
+
+  const f = el('<div class="card"><h2>대출 등록</h2></div>');
+  f.append(el("<label>이름</label>"), el('<input id="ln" placeholder="전세자금 / 학자금 / 차량">'),
+           el("<label>총액 (원금)</label>"), el('<input id="lp" inputmode="numeric" placeholder="0">'),
+           el("<label>연 이자율 (%)</label>"), el('<input id="lr" inputmode="decimal" placeholder="3.5">'),
+           el("<label>매달 상환일</label>"), el('<input id="ld" type="number" min="1" max="31" value="25">'),
+           el("<label>월 상환액 — 비워두면 이자만 내는 대출로 봅니다</label>"),
+           el('<input id="lm" inputmode="numeric" placeholder="비워두면 이자만">'));
+  const b = el('<button class="big">등록</button>');
+  b.onclick = () => {
+    const name = $("#ln").value.trim();
+    const principal = toKRW($("#lp").value, "₩", 1);
+    const rate = parseFloat($("#lr").value) || 0;
+    if (!name || !principal) return toast("이름과 총액을 입력하세요");
+    db.loans.push({ id: crypto.randomUUID(), name, principal, rate,
+                    day: Math.min(31, Math.max(1, parseInt($("#ld").value, 10) || 1)),
+                    monthly: toKRW($("#lm").value, "₩", 1), start: today() });
+    save(); render(); toast(name + " 등록됨");
+  };
+  f.append(b); v.append(f);
+}
+
+function repay(loan){
+  const pay = splitPayment(loan, db.tx);
+  if (!pay.total) return toast("낼 금액이 0원입니다");
+  if (!confirm(loan.name + " 상환 기록\n\n이자  " + won(pay.interest) + "원\n원금  "
+      + won(pay.principal) + "원\n────────\n합계  " + won(pay.total) + "원\n\n기록할까요?")) return;
+  const d = today();
+  const add = (s, a) => a && db.tx.push({ id: crypto.randomUUID(), d, m:"대출금", s, p:"나", a,
+    cur:"₩", orig:null, loan: loan.id, memo: loan.name + " " + s });
+  add("이자", pay.interest);
+  add("원금", pay.principal);
+  save(); render(); toast(won(pay.total) + "원 상환 기록됨");
+}
+
+/* ───────────── 설정 ───────────── */
+function viewSet(v){
+  backupWarn(v);
+
   const c = el('<div class="card"></div>');
   const tot = db.fixed.reduce((s,f) => s + f.a, 0);
-  c.append(el("<h2>매달 나가는 돈 · 합계 " + won(tot) + "원</h2>"));
-  if (!db.fixed.length) c.append(el('<div class="empty">고정비를 추가해보세요</div>'));
-
+  c.append(el("<h2>고정비 · 매달 " + won(tot) + "원</h2>"));
+  if (!db.fixed.length) c.append(el('<div class="empty">월세·통신비·구독료 같은 걸 넣어두세요</div>'));
   for (const f of db.fixed){
     const r = el('<div class="row"></div>');
-    r.append(el('<div class="l"><div class="t">' + esc(f.name) + "</div>"
-      + '<div class="s">매달 ' + f.day + "일</div></div>"));
-    const right = el('<div style="display:flex;align-items:center;gap:4px"></div>');
+    r.append(el('<div class="l"><div><div class="t">' + esc(f.name) + "</div>"
+      + '<div class="s">매달 ' + f.day + "일</div></div></div>"));
+    const right = el('<div style="display:flex;align-items:center"></div>');
     right.append(el('<div class="amt">' + won(f.a) + "</div>"));
-    const x = el('<button class="del">×</button>');
+    const x = el('<button class="del">✕</button>');
     x.onclick = () => { if (confirm("삭제할까요?")){ db.fixed = db.fixed.filter(z => z.id !== f.id); save(); render(); } };
     right.append(x); r.append(right); c.append(r);
   }
@@ -346,99 +574,156 @@ function viewFix(v){
            el("<label>결제일</label>"), el('<input id="fd" type="number" min="1" max="31" value="25">'));
   const b = el('<button class="big">추가</button>');
   b.onclick = () => {
-    const name = $("#fn").value.trim();
-    const a = parseInt(($("#fa").value || "").replace(/[^0-9]/g, ""), 10);
+    const name = $("#fn").value.trim(), a = toKRW($("#fa").value, "₩", 1);
     if (!name || !a) return toast("이름과 금액을 입력하세요");
     db.fixed.push({ id: crypto.randomUUID(), name, a,
                     day: Math.min(31, Math.max(1, parseInt($("#fd").value, 10) || 1)) });
     save(); render(); toast("추가됨");
   };
   f.append(b); v.append(f);
+
+  const r = el('<div class="card"><h2>환율</h2></div>');
+  const rr = el('<div class="row bare"></div>');
+  rr.append(el('<div><div class="t">1 € = ' + won(db.rate) + " 원</div>"
+    + '<div class="s">' + esc(db.rateAt || "기본값") + " · ECB 공시환율</div></div>"));
+  const rf = el('<button class="ghost">지금 갱신</button>'); rf.onclick = () => fetchRate(true);
+  rr.append(rf); r.append(rr); v.append(r);
+
+  v.append(backupCard());
 }
 
-/* ---- 백업 ---- */
+/* ───────────── 백업 ───────────── */
+function backupWarn(v){
+  const d = db.backupAt ? daysBetween(db.backupAt, today()) : null;
+  if (d !== null && d < BACKUP_WARN_DAYS) return;
+  if (!db.tx.length && !db.loans.length && !db.fixed.length) return;
+  const w = el('<div class="warn"><span>⚠️</span><span>'
+    + (d === null ? "아직 백업한 적이 없습니다." : d + "일째 백업을 안 했습니다.")
+    + " 사파리 데이터를 지우면 전부 사라져요.</span></div>");
+  const b = el('<button class="ghost">백업</button>');
+  b.onclick = exportJSON;
+  w.append(b); v.append(w);
+}
+
+function exportJSON(){
+  db.backupAt = today(); save();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type:"application/json" }));
+  a.download = "가계부-" + today() + ".json";
+  a.click();
+  render(); toast("파일 앱에 저장하세요");
+}
+
 function backupCard(){
-  const c = el('<div class="card"><h2>백업 — 사파리 데이터 지우면 날아갑니다</h2></div>');
+  const c = el('<div class="card"><h2>백업</h2></div>');
+  c.append(el('<div class="note" style="margin:0 0 14px">서버가 없어서 데이터는 이 폰 안에만 있습니다. '
+    + "설정 → Safari → 방문 기록 및 데이터 지우기를 누르면 복구할 방법이 없습니다.<br>"
+    + (db.backupAt ? "마지막 백업: " + db.backupAt : "백업한 적 없음") + "</div>"));
   const box = el('<div class="split"></div>');
-
-  const ex = el('<button class="ghost">내보내기</button>');
-  ex.onclick = () => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(db)], { type:"application/json" }));
-    a.download = "moneybook-" + today() + ".json";
-    a.click();
-  };
-
+  const ex = el('<button class="ghost acc">내보내기</button>'); ex.onclick = exportJSON;
   const im = el('<button class="ghost">불러오기</button>');
   im.onclick = () => {
     const i = document.createElement("input"); i.type = "file"; i.accept = ".json,application/json";
     i.onchange = () => {
-      const r = new FileReader();
-      r.onload = () => {
+      const rd = new FileReader();
+      rd.onload = () => {
         try {
-          const j = JSON.parse(r.result);
+          const j = JSON.parse(rd.result);
           if (!Array.isArray(j.tx)) throw new Error("bad");
-          db = { tx: j.tx, fixed: Array.isArray(j.fixed) ? j.fixed : [] };
+          if (db.tx.length && !confirm("지금 데이터를 덮어씁니다. 계속할까요?")) return;
+          db = Object.assign(load.call(null), j, { tx: j.tx });
+          db.fixed = Array.isArray(j.fixed) ? j.fixed : [];
+          db.loans = Array.isArray(j.loans) ? j.loans : [];
           save(); render(); toast("불러왔습니다");
         } catch(e){ toast("파일이 이상해요"); }
       };
-      r.readAsText(i.files[0]);
+      rd.readAsText(i.files[0]);
     };
     i.click();
   };
-
   box.append(ex, im); c.append(box);
   return c;
 }
 
+/* ───────────── 라우팅 ───────────── */
 function render(){
   const v = $("#view"); v.innerHTML = "";
-  ({ add: viewAdd, list: viewList, stat: viewStat, fix: viewFix })[tab](v);
+  ({ add: viewAdd, list: viewList, stat: viewStat, loan: viewLoan, set: viewSet })[tab](v);
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
+  window.scrollTo(0, 0);
 }
-
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
 $("#ym").value = today().slice(0, 7);
 $("#ym").onchange = render;
 
-/* ---- 자가검증: 주소 끝에 #test 붙이고 새로고침 ---- */
+/* ───────────── 자가검증: 주소 끝에 #test ───────────── */
 function runTests(){
   const out = [];
-  const ok = (name, cond) => out.push((cond ? "OK   " : "FAIL ") + name);
+  const ok = (n, c) => out.push((c ? "OK   " : "FAIL ") + n);
   const tx = [
-    { id:"1", d:"2026-09-03", m:"데이트", s:"식사", p:"나",       a:30000, memo:"" },
-    { id:"2", d:"2026-09-10", m:"데이트", s:"카페", p:"여자친구", a:12000, memo:"" },
-    { id:"3", d:"2026-09-10", m:"데이트", s:"식사", p:"여자친구", a: 8000, memo:"" },
-    { id:"4", d:"2026-09-15", m:"개인",   s:"취미", p:"나",       a:50000, memo:"" },
-    { id:"5", d:"2026-08-15", m:"대출금", s:"이자", p:"나",       a:90000, memo:"" }
+    { id:"1", d:"2026-09-03", m:"데이트", s:"식사", p:"나",       a:30000 },
+    { id:"2", d:"2026-09-10", m:"데이트", s:"카페", p:"여자친구", a:12000 },
+    { id:"3", d:"2026-09-10", m:"데이트", s:"식사", p:"여자친구", a: 8000 },
+    { id:"4", d:"2026-09-15", m:"개인",   s:"취미", p:"나",       a:50000 },
+    { id:"5", d:"2026-08-15", m:"대출금", s:"이자", p:"나",       a:90000 }
   ];
   const fx = [{ id:"f1", name:"월세", a:400000, day:25 }];
   const s = summarize(tx, fx, "2026-09");
 
-  ok("9월 건수만 집계 (4건)",        s.rows.length === 4);
-  ok("변동비 합 100,000",            s.varTotal === 100000);
-  ok("고정비 합 400,000",            s.fixedTotal === 400000);
-  ok("총합 500,000",                 s.total === 500000);
-  ok("데이트 50,000",                s.byMain["데이트"] === 50000);
-  ok("개인 50,000",                  s.byMain["개인"] === 50000);
-  ok("8월건 제외 (대출금 0)",        s.byMain["대출금"] === 0);
-  ok("내 결제 30,000",               s.byPayer["나"] === 30000);
-  ok("여친 결제 20,000",             s.byPayer["여자친구"] === 20000);
-  ok("데이트 식사 38,000 (둘 합산)",  s.bySub["식사"] === 38000);
-  ok("개인지출은 결제자 집계 제외",   s.byPayer["나"] !== 80000);
-  ok("데이트 아닌 세부분류 미포함",   s.bySub["취미"] === undefined);
-  ok("빈 달도 안전",                 summarize([], [], "2026-01").total === 0);
-  ok("최신순 정렬",                  s.rows[0].d === "2026-09-15");
+  ok("9월 건수만 집계 (4건)",      s.rows.length === 4);
+  ok("변동비 100,000",             s.varTotal === 100000);
+  ok("고정비 400,000",             s.fixedTotal === 400000);
+  ok("총합 500,000",               s.total === 500000);
+  ok("데이트 50,000",              s.byMain["데이트"] === 50000);
+  ok("8월건 제외 (대출금 0)",      s.byMain["대출금"] === 0);
+  ok("내 결제 30,000",             s.byPayer["나"] === 30000);
+  ok("여친 결제 20,000",           s.byPayer["여자친구"] === 20000);
+  ok("데이트 식사 38,000 (합산)",  s.bySub["식사"] === 38000);
+  ok("개인건 결제자 집계 제외",     s.byPayer["나"] !== 80000);
+  ok("빈 달도 안전",               summarize([], [], "2026-01").total === 0);
+  ok("최신순 정렬",                s.rows[0].d === "2026-09-15");
 
-  ok("€12.50 x1450 = 18,125원",      toKRW("12.50", "€", 1450) === 18125);
-  ok("€0.99 반올림",                 toKRW("0.99", "€", 1450) === 1436);
-  ok("원화는 환율 무시",             toKRW("1,200", "₩", 1450) === 1200);
-  ok("빈 입력은 0",                  toKRW("", "₩", 1450) === 0);
-  ok("글자만 입력은 0",              toKRW("abc", "€", 1450) === 0);
-  ok("환율 바뀌면 결과도 바뀜",       toKRW("10", "€", 1500) === 15000);
+  ok("€12.50 x1450 = 18,125",      toKRW("12.50", "€", 1450) === 18125);
+  ok("€0.99 반올림",               toKRW("0.99", "€", 1450) === 1436);
+  ok("원화는 환율 무시",           toKRW("1,200", "₩", 1450) === 1200);
+  ok("빈 입력 0",                  toKRW("", "₩", 1450) === 0);
+  ok("글자만 0",                   toKRW("abc", "€", 1450) === 0);
+
+  // 대출: 1,200만원, 연 6% -> 월 이자 60,000. 월 상환액 500,000
+  const L = { id:"L1", name:"차", principal:12000000, rate:6, day:25, monthly:500000 };
+  const a0 = loanState(L, []);
+  ok("잔금 = 총액 (상환 전)",      a0.balance === 12000000);
+  ok("월 이자 60,000",             a0.monthlyInterest === 60000);
+  ok("진행률 0%",                  a0.progress === 0);
+
+  const p0 = splitPayment(L, []);
+  ok("1회차 이자 60,000",          p0.interest === 60000);
+  ok("1회차 원금 440,000",         p0.principal === 440000);
+  ok("1회차 합계 500,000",         p0.total === 500000);
+
+  const ltx = [{ id:"a", d:"2026-09-25", m:"대출금", s:"원금", p:"나", a:440000, loan:"L1" },
+               { id:"b", d:"2026-09-25", m:"대출금", s:"이자", p:"나", a: 60000, loan:"L1" }];
+  const a1 = loanState(L, ltx);
+  ok("2회차 잔금 11,560,000",      a1.balance === 11560000);
+  ok("이자는 잔금 안 깎음",        a1.paidPrincipal === 440000);
+  ok("낸 이자 누적 60,000",        a1.paidInterest === 60000);
+  ok("2회차 이자 57,800 (잔금기준)", splitPayment(L, ltx).interest === 57800);
+  ok("다른 대출 기록은 무시",      loanState({ id:"L2", principal:100, rate:0 }, ltx).balance === 100);
+
+  // 이자만 내는 대출: 월 상환액 없음 -> 이자만, 원금 그대로
+  const IO = { id:"L3", name:"전세", principal:100000000, rate:3.6, day:10, monthly:0 };
+  const pio = splitPayment(IO, []);
+  ok("이자만 대출 - 원금 0",       pio.principal === 0);
+  ok("이자만 대출 - 이자 300,000", pio.interest === 300000);
+
+  // 마지막 회차: 월 상환액이 잔금보다 커도 초과 상환 안 됨
+  const END = { id:"L4", name:"막판", principal:100000, rate:0, day:1, monthly:500000 };
+  ok("초과 상환 방지",             splitPayment(END, []).principal === 100000);
+  const paidOff = loanState(END, [{ id:"z", s:"원금", a:100000, loan:"L4" }]);
+  ok("완납 인식",                  paidOff.done === true && paidOff.balance === 0);
 
   const pass = out.every(x => x.startsWith("OK"));
-  document.body.innerHTML = '<pre style="padding:20px;font-size:14px;line-height:2">'
+  document.body.innerHTML = '<pre style="padding:20px;font-size:13px;line-height:1.9">'
     + out.join("\n") + "\n\n" + (pass ? "전부 통과" : "실패 있음") + "</pre>";
   return pass;
 }
