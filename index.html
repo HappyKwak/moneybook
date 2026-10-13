@@ -141,10 +141,11 @@ nav button.on svg{stroke-width:2.3}
 /* ═════════ 여기만 고치면 분류가 바뀝니다 ═════════ */
 const CAT = {
   "데이트" : ["식사","카페","주유비","쇼핑","선물","문화생활","여행","기타"],
-  "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"],
-  "대출금" : ["원금","이자","기타"]
+  "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"]
 };
-const PAYERS = ["나","여자친구"];
+// 대출은 대출 탭에서만 관리. 거기서 남긴 상환 기록(m:"대출금")은 가계부 합계·내역에 안 들어감
+const PAYERS = ["나","여자친구"];  // 두 번째 사람이 낸 건 내 지출 합계에서 빠짐
+const COUNTRY = { "₩":"한국", "€":"독일" };   // 통화 = 나라
 const DEFAULT_RATE = 1578;        // 1유로 = ?원 (매일 자동 갱신)
 const BACKUP_WARN_DAYS = 14;      // 며칠 지나면 백업하라고 알릴지
 /* ═══════════════════════════════════════════════ */
@@ -160,9 +161,16 @@ const ymOf = d => d.slice(0,7);
 const today = () => new Date(Date.now() - new Date().getTimezoneOffset()*6e4).toISOString().slice(0,10);
 const daysBetween = (a,b) => Math.floor((new Date(b) - new Date(a)) / 864e5);
 
+const countryOf = x => COUNTRY[x.cur === "€" ? "€" : "₩"];   // cur 없는 옛 기록은 원화
+const isGF = t => t.p === PAYERS[1];
+/* 유로 고정비는 오늘 환율로 환산 — 매달 나가는 돈이라 등록 시점 환율에 묶으면 안 됨 */
+const fixedKRW = (f, rate) => f.cur === "€" ? Math.round(f.orig * rate) : f.a;
+
 let db = load();
 let tab = "add";
-let draft = { m:"데이트", s:"식사", p:"나", cur:"₩", loan:null };
+let country = "전체";
+const cf = () => country === "전체" ? null : country;
+let draft = { m:"데이트", s:"식사", p:"나", cur:"₩", amt:"", memo:"" };
 
 function load(){
   const base = { tx:[], fixed:[], loans:[], rate:DEFAULT_RATE, rateAt:"", backupAt:"" };
@@ -194,14 +202,19 @@ function fetchRate(loud){
 
 /* ═══════════ 순수 계산 함수 (주소 끝 #test 로 검증) ═══════════ */
 
-function summarize(tx, fixed, ym){
-  const rows = tx.filter(t => ymOf(t.d) === ym)
+/* country: null = 전체, "한국"/"독일" = 그 나라만 (고정비 포함).
+   여자친구가 낸 건 rows·결제자 통계엔 남기고 내 지출 합계(byMain, varTotal, total)에선 뺀다 */
+function summarize(tx, fixed, ym, country, rate){
+  rate = rate || DEFAULT_RATE;
+  const inC = x => !country || countryOf(x) === country;
+  const rows = tx.filter(t => ymOf(t.d) === ym && inC(t) && t.m !== "대출금" && !t.loan)
                  .sort((a,b) => b.d.localeCompare(a.d) || b.id.localeCompare(a.id));
+  const mine = rows.filter(t => !isGF(t));
   const sum = a => a.reduce((s,t) => s + t.a, 0);
 
   const byMain = {};
   for (const m of Object.keys(CAT)) byMain[m] = 0;
-  for (const t of rows) byMain[t.m] = (byMain[t.m] || 0) + t.a;
+  for (const t of mine) byMain[t.m] = (byMain[t.m] || 0) + t.a;
 
   const date = rows.filter(t => t.m === "데이트");
   const byPayer = {};
@@ -213,9 +226,14 @@ function summarize(tx, fixed, ym){
 
   // ponytail: 고정비는 등록돼 있으면 모든 달에 반영. 시작/종료 월이 필요해지면 f.from / f.to 추가.
   // 유로 지출은 입력 시점 환율로 원화 변환해 저장하므로 여기서 통화를 신경 쓸 필요가 없음.
-  const fixedTotal = sum(fixed);
-  const varTotal   = sum(rows);
-  return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, total: varTotal + fixedTotal };
+  const fx = fixed.filter(inC);
+  const fixedTotal = fx.reduce((s,f) => s + fixedKRW(f, rate), 0);
+  const varTotal   = sum(mine);
+  const eurOf = x => x.cur === "€" ? (x.orig || 0) : 0;      // 유로로 낸 돈 원래 금액
+  const eur = Math.round((mine.reduce((s,t) => s + eurOf(t), 0)
+                        + fx.reduce((s,f) => s + eurOf(f), 0)) * 100) / 100;
+  return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, eur,
+           gfTotal: sum(rows) - varTotal, total: varTotal + fixedTotal };
 }
 
 /* 대출은 빌린 통화 그대로 관리한다. 환율이 움직여도 € 빚은 € 그대로이므로
@@ -294,19 +312,16 @@ function donut(parts){
 }
 
 /* ───────────── 입력 ───────────── */
+/* 금액·메모·날짜는 칠 때마다 draft에 담아두고 다시 그릴 때 채워 넣는다.
+   그래서 분류·통화·결제자를 몇 번을 바꿔도 적던 게 안 지워진다. 저장할 때만 비움 */
 function viewAdd(v){
-  const isLoan = draft.m === "대출금";
-  const aLoan = isLoan ? db.loans.find(l => l.id === draft.loan) : null;
-  const cur = aLoan ? aLoan.cur : draft.cur;      // 대출을 고르면 그 대출의 통화로 잠긴다
+  const cur = draft.cur;
   const eur = cur === "€";
   const c = el('<div class="card"></div>');
 
-  if (aLoan)
-    c.append(el('<div class="note" style="margin:0 0 12px">' + esc(aLoan.name)
-      + "은 " + aLoan.cur + " 대출이라 " + aLoan.cur + "로 기록됩니다</div>"));
-  else
-    c.append(el("<label>통화</label>"),
-             chips(["₩","€"], draft.cur, x => { draft.cur = x; render(); }, true));
+  c.append(el("<label>어디서 썼나</label>"),
+           chips(["₩ 한국","€ 독일"], draft.cur + " " + COUNTRY[draft.cur],
+                 x => { draft.cur = x[0]; render(); }, true));
 
   c.append(el("<label>금액 (" + cur + ")</label>"),
            el('<input id="amt" type="text" inputmode="' + (eur ? "decimal" : "numeric") + '" placeholder="0">'),
@@ -329,12 +344,6 @@ function viewAdd(v){
   c.append(el("<label>대분류</label>"),
            chips(Object.keys(CAT), draft.m, m => { draft.m = m; draft.s = CAT[m][0]; render(); }));
 
-  if (isLoan && db.loans.length){
-    c.append(el("<label>어느 대출</label>"),
-      chips(db.loans.map(l => l.name), (db.loans.find(l => l.id === draft.loan) || {}).name,
-            n => { draft.loan = db.loans.find(l => l.name === n).id; render(); }, true));
-  }
-
   c.append(el("<label>세부분류</label>"), chips(CAT[draft.m], draft.s, s => { draft.s = s; render(); }));
 
   if (draft.m === "데이트")
@@ -350,15 +359,14 @@ function viewAdd(v){
     const raw = $("#amt").value;
     const a = toKRW(raw, cur, db.rate);
     if (!a) return toast("금액을 입력하세요");
-    if (isLoan && db.loans.length && !draft.loan) return toast("어느 대출인지 고르세요");
     draft.d = $("#dt").value || today();
     const native = eur ? parseFloat(raw.replace(/,/g, "")) : a;
     db.tx.push({ id: crypto.randomUUID(), d: draft.d, m: draft.m, s: draft.s,
                  p: draft.m === "데이트" ? draft.p : "나", a,
                  cur, orig: eur ? native : null,
-                 loan: aLoan ? aLoan.id : null, la: aLoan ? native : null,
                  memo: $("#mm").value.trim() });
-    save(); render();
+    draft.amt = ""; draft.memo = "";
+    save(); render(true);
     toast((eur ? "€" + native + " = " : "") + won(a) + "원 저장");
   };
   c.append(btn);
@@ -374,19 +382,34 @@ function viewAdd(v){
       const k = toKRW(n, "€", db.rate);
       conv.textContent = k ? "= 약 " + won(k) + "원" : "";
     } else {
-      const n = amt.value.replace(/[^0-9]/g, "");
+      const n = amt.value.split(".")[0].replace(/[^0-9]/g, "");   // € → ₩ 전환 시 소수점 아래 버림
       amt.value = n ? won(parseInt(n, 10)) : "";
       conv.textContent = "";
     }
+    draft.amt = amt.value;
   };
+  amt.value = draft.amt || ""; amt.oninput();          // 적던 금액 복원 (통화 바뀌었으면 다시 포맷)
+  const mm = $("#mm"), dt = $("#dt");
+  mm.value = draft.memo || "";
+  mm.oninput = () => { draft.memo = mm.value; };
+  dt.onchange = () => { draft.d = dt.value; };
 }
 
 /* ───────────── 내역 ───────────── */
+function countryChips(v){
+  const box = el('<div style="margin-bottom:12px"></div>');
+  box.append(chips(["전체", ...Object.values(COUNTRY)], country, x => { country = x; render(); }, true));
+  v.append(box);
+}
+
 function viewList(v){
   backupWarn(v);
-  const s = summarize(db.tx, db.fixed, $("#ym").value);
+  countryChips(v);
+  const s = summarize(db.tx, db.fixed, $("#ym").value, cf(), db.rate);
   const c = el('<div class="card"></div>');
-  c.append(el("<h2>변동비 " + s.rows.length + "건 · " + won(s.varTotal) + "원</h2>"));
+  c.append(el("<h2>" + s.rows.length + "건 · 내 지출 " + won(s.varTotal) + "원</h2>"));
+  if (s.gfTotal) c.append(el('<div class="note" style="margin:-8px 0 6px">'
+    + esc(PAYERS[1]) + " 결제 " + won(s.gfTotal) + "원은 내 지출에서 빠집니다</div>"));
   if (!s.rows.length) c.append(el('<div class="empty">이 달 내역이 없습니다</div>'));
 
   for (const t of s.rows){
@@ -398,7 +421,8 @@ function viewList(v){
       + '<div><div class="t">' + esc(t.memo || t.s) + "</div>"
       + '<div class="s">' + t.d.slice(5).replace("-", ".") + " · " + esc(tag) + "</div></div></div>"));
     const right = el('<div style="display:flex;align-items:center"></div>');
-    right.append(el('<div class="amt">' + won(t.a) + "</div>"));
+    right.append(el('<div class="amt"' + (isGF(t) ? ' style="color:var(--dim)"' : "") + ">"
+      + won(t.a) + "</div>"));
     const x = el('<button class="del">✕</button>');
     x.onclick = () => { if (confirm("삭제할까요?")){ db.tx = db.tx.filter(z => z.id !== t.id); save(); render(); } };
     right.append(x); r.append(right); c.append(r);
@@ -409,13 +433,28 @@ function viewList(v){
 /* ───────────── 통계 ───────────── */
 function viewStat(v){
   const ym = $("#ym").value;
-  const s  = summarize(db.tx, db.fixed, ym);
+  const s  = summarize(db.tx, db.fixed, ym, cf(), db.rate);
+  countryChips(v);
 
-  v.append(el('<div class="hero"><div class="cap">' + ym.replace("-", "년 ") + "월 총 지출</div>"
+  v.append(el('<div class="hero"><div class="cap">' + ym.replace("-", "년 ") + "월 "
+    + (cf() ? country + " " : "") + "총 지출</div>"
     + '<div class="v num">' + won(s.total) + "<span style=\"font-size:22px\">원</span></div>"
     + '<div class="sub"><div>변동비<b class="num">' + won(s.varTotal) + "</b></div>"
     + '<div>고정비<b class="num">' + won(s.fixedTotal) + "</b></div>"
-    + '<div>건수<b class="num">' + s.rows.length + "</b></div></div></div>"));
+    + (country === "독일" ? '<div>유로로<b class="num">' + fmt(s.eur, "€") + "</b></div>"
+                          : '<div>건수<b class="num">' + s.rows.length + "</b></div>")
+    + "</div></div>"));
+
+  if (!cf()){
+    const c0 = el('<div class="card"><h2>나라별 · 고정비 포함</h2></div>');
+    const sp0 = el('<div class="split"></div>');
+    for (const [cur, name] of Object.entries(COUNTRY)){
+      const k = summarize(db.tx, db.fixed, ym, name, db.rate);
+      sp0.append(el('<div class="pill"><i>' + name + "</i><b>" + won(k.total) + "</b>"
+        + '<div class="s">고정 ' + won(k.fixedTotal) + "</div></div>"));
+    }
+    c0.append(sp0); v.append(c0);
+  }
 
   const parts = Object.keys(CAT).map((m, i) => ({ label: m, value: s.byMain[m], color: hueOf(m, i) }));
   const c1 = el('<div class="card"><h2>어디에 썼나</h2></div>');
@@ -449,6 +488,9 @@ function viewStat(v){
   c2.append(el('<div class="note" style="text-align:center;margin-top:10px">'
     + (!dTot ? "데이트 지출이 없습니다"
              : diff ? esc(more) + "가 " + won(diff) + "원 더 썼어요" : "정확히 반반이네요") + "</div>"));
+  if (s.byPayer[PAYERS[1]])
+    c2.append(el('<div class="note" style="text-align:center">' + esc(PAYERS[1])
+      + "가 낸 돈은 총 지출에 안 들어갑니다</div>"));
   v.append(c2);
 
   const subs = Object.entries(s.bySub).sort((a,b) => b[1] - a[1]);
@@ -468,7 +510,7 @@ function viewStat(v){
     const d = new Date(ym + "-01T00:00:00");
     d.setMonth(d.getMonth() - i);
     const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    months.push([k, summarize(db.tx, db.fixed, k).total]);
+    months.push([k, summarize(db.tx, db.fixed, k, cf(), db.rate).total]);
   }
   const mmx = Math.max(1, ...months.map(x => x[1]));
   const c4 = el('<div class="card"><h2>최근 6개월</h2></div>');
@@ -568,7 +610,7 @@ function viewLoan(v){
                     rate: parseFloat($("#lr").value) || 0,
                     day: Math.min(31, Math.max(1, parseInt($("#ld").value, 10) || 1)),
                     monthly: numOf($("#lm").value), start: today() });
-    viewLoan.cur = "₩"; save(); render(); toast(name + " 등록됨");
+    viewLoan.cur = "₩"; save(); render(true); toast(name + " 등록됨");
   };
   f.append(b); v.append(f);
 }
@@ -596,15 +638,17 @@ function viewSet(v){
   backupWarn(v);
 
   const c = el('<div class="card"></div>');
-  const tot = db.fixed.reduce((s,f) => s + f.a, 0);
+  const tot = db.fixed.reduce((s,f) => s + fixedKRW(f, db.rate), 0);
   c.append(el("<h2>고정비 · 매달 " + won(tot) + "원</h2>"));
   if (!db.fixed.length) c.append(el('<div class="empty">월세·통신비·구독료 같은 걸 넣어두세요</div>'));
   for (const f of db.fixed){
+    const E = f.cur === "€";
     const r = el('<div class="row"></div>');
     r.append(el('<div class="l"><div><div class="t">' + esc(f.name) + "</div>"
-      + '<div class="s">매달 ' + f.day + "일</div></div></div>"));
+      + '<div class="s">' + countryOf(f) + " · 매달 " + f.day + "일"
+      + (E ? " · " + fmt(f.orig, "€") : "") + "</div></div></div>"));
     const right = el('<div style="display:flex;align-items:center"></div>');
-    right.append(el('<div class="amt">' + won(f.a) + "</div>"));
+    right.append(el('<div class="amt">' + (E ? "≈ " : "") + won(fixedKRW(f, db.rate)) + "</div>"));
     const x = el('<button class="del">✕</button>');
     x.onclick = () => { if (confirm("삭제할까요?")){ db.fixed = db.fixed.filter(z => z.id !== f.id); save(); render(); } };
     right.append(x); r.append(right); c.append(r);
@@ -612,16 +656,21 @@ function viewSet(v){
   v.append(c);
 
   const f = el('<div class="card"><h2>고정비 추가</h2></div>');
-  f.append(el("<label>이름</label>"), el('<input id="fn" placeholder="월세 / 통신비 / 구독료">'),
-           el("<label>금액</label>"), el('<input id="fa" inputmode="numeric" placeholder="0">'),
+  const FC = viewSet.cur || "₩";                  // 추가 폼에서 고른 나라
+  f.append(el("<label>어느 나라</label>"),
+           chips(["₩ 한국","€ 독일"], FC + " " + COUNTRY[FC], x => { viewSet.cur = x[0]; render(); }, true),
+           el("<label>이름</label>"), el('<input id="fn" placeholder="월세 / 통신비 / 구독료">'),
+           el("<label>금액 (" + FC + ")</label>"), el('<input id="fa" inputmode="decimal" placeholder="0">'),
            el("<label>결제일</label>"), el('<input id="fd" type="number" min="1" max="31" value="25">'));
   const b = el('<button class="big">추가</button>');
   b.onclick = () => {
-    const name = $("#fn").value.trim(), a = toKRW($("#fa").value, "₩", 1);
+    const name = $("#fn").value.trim();
+    const orig = parseFloat($("#fa").value.replace(/,/g, "").replace(/[^0-9.]/g, "")) || 0;
+    const a = toKRW($("#fa").value, FC, db.rate);
     if (!name || !a) return toast("이름과 금액을 입력하세요");
-    db.fixed.push({ id: crypto.randomUUID(), name, a,
+    db.fixed.push({ id: crypto.randomUUID(), name, a, cur: FC, orig: FC === "€" ? orig : null,
                     day: Math.min(31, Math.max(1, parseInt($("#fd").value, 10) || 1)) });
-    save(); render(); toast("추가됨");
+    viewSet.cur = "₩"; save(); render(true); toast("추가됨");
   };
   f.append(b); v.append(f);
 
@@ -725,11 +774,19 @@ function backupCard(){
 }
 
 /* ───────────── 라우팅 ───────────── */
-function render(){
-  const v = $("#view"); v.innerHTML = "";
+/* 같은 탭을 다시 그릴 땐(항목·통화 바꾸기, 환율 갱신 등) 적던 입력값과 스크롤을 그대로 둔다.
+   저장/등록 직후엔 render(true)로 폼을 비운다 */
+let shownTab = null;
+function render(fresh){
+  const v = $("#view"), keep = {};
+  if (!fresh && shownTab === tab) v.querySelectorAll("input[id]").forEach(i => keep[i.id] = i.value);
+  v.innerHTML = "";
   ({ add: viewAdd, list: viewList, stat: viewStat, loan: viewLoan, set: viewSet })[tab](v);
+  for (const id in keep){ const i = document.getElementById(id); if (i) i.value = keep[id]; }
+  if (keep.amt && $("#amt")) $("#amt").oninput();     // 통화 바뀌었으면 다시 포맷
   document.querySelectorAll("nav button").forEach(b => b.classList.toggle("on", b.dataset.tab === tab));
-  window.scrollTo(0, 0);
+  if (shownTab !== tab) window.scrollTo(0, 0);
+  shownTab = tab;
 }
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
 $("#ym").value = today().slice(0, 7);
@@ -750,17 +807,41 @@ function runTests(){
   const s = summarize(tx, fx, "2026-09");
 
   ok("9월 건수만 집계 (4건)",      s.rows.length === 4);
-  ok("변동비 100,000",             s.varTotal === 100000);
+  ok("변동비 80,000 (여친 결제 제외)", s.varTotal === 80000);
+  ok("여친 결제 따로 20,000",      s.gfTotal === 20000);
   ok("고정비 400,000",             s.fixedTotal === 400000);
-  ok("총합 500,000",               s.total === 500000);
-  ok("데이트 50,000",              s.byMain["데이트"] === 50000);
-  ok("8월건 제외 (대출금 0)",      s.byMain["대출금"] === 0);
+  ok("총합 480,000",               s.total === 480000);
+  ok("데이트 30,000 (내 결제만)",  s.byMain["데이트"] === 30000);
+  ok("대출금 대분류 없음",         !("대출금" in s.byMain));
+  const lx = summarize([...tx, { id:"9", d:"2026-09-25", m:"대출금", s:"이자", p:"나", a:70000, loan:"L1" }],
+                       fx, "2026-09");
+  ok("대출 상환은 가계부 합계 제외", lx.varTotal === 80000 && lx.rows.length === 4);
   ok("내 결제 30,000",             s.byPayer["나"] === 30000);
   ok("여친 결제 20,000",           s.byPayer["여자친구"] === 20000);
   ok("데이트 식사 38,000 (합산)",  s.bySub["식사"] === 38000);
   ok("개인건 결제자 집계 제외",     s.byPayer["나"] !== 80000);
   ok("빈 달도 안전",               summarize([], [], "2026-01").total === 0);
   ok("최신순 정렬",                s.rows[0].d === "2026-09-15");
+
+  // 나라별: 원화 = 한국, 유로 = 독일. 고정비도 나라별로 합산, 유로 고정비는 넘겨준 환율로
+  const ctx = [
+    { id:"k", d:"2026-09-01", m:"개인",   s:"식비", p:"나",       a:10000, cur:"₩" },
+    { id:"g", d:"2026-09-02", m:"개인",   s:"식비", p:"나",       a:15000, cur:"€", orig:10 },
+    { id:"h", d:"2026-09-03", m:"데이트", s:"식사", p:"여자친구", a:30000, cur:"€", orig:20 },
+    { id:"o", d:"2026-09-04", m:"개인",   s:"식비", p:"나",       a: 7000 }          // cur 없는 옛 기록
+  ];
+  const cfx = [{ id:"r", name:"월세", cur:"€", orig:800, a:1, day:1 },
+               { id:"t", name:"통신", a:50000, day:25 }];
+  const sk = summarize(ctx, cfx, "2026-09", "한국", 1500);
+  const sd = summarize(ctx, cfx, "2026-09", "독일", 1500);
+  ok("한국 변동비 17,000 (옛 기록 포함)", sk.varTotal === 17000);
+  ok("한국 고정비 50,000",          sk.fixedTotal === 50000);
+  ok("독일 변동비 15,000",          sd.varTotal === 15000);
+  ok("독일 고정비 €800 x1500",      sd.fixedTotal === 1200000);
+  ok("독일 총합 1,215,000",         sd.total === 1215000);
+  ok("독일 유로 합계 €810 (여친 제외)", sd.eur === 810);
+  ok("전체 = 한국 + 독일",          summarize(ctx, cfx, "2026-09", null, 1500).total === sk.total + sd.total);
+  ok("유로 고정비는 오늘 환율",     fixedKRW(cfx[0], 1600) === 1280000);
 
   ok("€12.50 x1450 = 18,125",      toKRW("12.50", "€", 1450) === 18125);
   ok("€0.99 반올림",               toKRW("0.99", "€", 1450) === 1436);
