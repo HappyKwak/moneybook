@@ -909,10 +909,33 @@ function runTests(){
   return pass;
 }
 
+/* 홈 화면 앱은 옛 파일을 캐시에 붙들고 있어서, 켤 때·다시 열 때 서버 파일과 버전을 비교한다.
+   cache:"reload"는 네트워크에서 새로 받아 캐시까지 갈아끼우므로 그 뒤 reload하면 새 버전이 뜬다.
+   올릴 때마다 VERSION 숫자만 바꾸면 됨 */
+const VERSION = "2026-10-13b";
+function checkUpdate(){
+  fetch(location.pathname, { cache:"reload" })
+    .then(r => r.text())
+    .then(t => {
+      const m = t.match(/const VERSION = "([^"]+)"/);
+      if (!m || m[1] === VERSION) return;
+      const typing = $("#amt") && $("#amt").value;
+      if (typing) return;                          // 적고 있는 중엔 안 끊는다. 다음에 열 때 반영
+      try {                                        // 같은 버전으로 두 번 새로고침 안 함 (무한 반복 방지)
+        if (sessionStorage.getItem("upd") === m[1]) return;
+        sessionStorage.setItem("upd", m[1]);
+      } catch(e){}
+      location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]));
+    })
+    .catch(() => {});                              // 오프라인이면 그냥 지금 버전으로
+}
+
 if (location.hash === "#test") { runTests(); }
 else {
   render();
   if (db.rateAt !== today()) fetchRate(false);   // 하루 한 번 조용히 환율 갱신
+  checkUpdate();
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) checkUpdate(); });
 }
 </script>
 </body>
