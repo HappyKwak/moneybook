@@ -139,13 +139,18 @@ nav button.on svg{stroke-width:2.3}
 
 <script>
 /* ═════════ 여기만 고치면 분류가 바뀝니다 ═════════ */
-const CAT = {
-  "데이트" : ["식사","카페","주유비","쇼핑","선물","문화생활","여행","기타"],
-  "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"]
+const CAT = {                     // 나라(통화)마다 분류가 다름
+  "€" : {
+    "개인"   : ["장보기","DM","아시아마트","외식","카페","교통","쇼핑","생활용품","의료","통신","취미","기타"]
+  },
+  "₩" : {
+    "데이트" : ["식사","카페","주유비","쇼핑","선물","문화생활","여행","기타"],
+    "개인"   : ["식비","교통","쇼핑","취미","의료","통신","기타"]
+  }
 };
 // 대출은 대출 탭에서만 관리. 거기서 남긴 상환 기록(m:"대출금")은 가계부 합계·내역에 안 들어감
 const PAYERS = ["나","여자친구"];  // 두 번째 사람이 낸 건 내 지출 합계에서 빠짐
-const COUNTRY = { "₩":"한국", "€":"독일" };   // 통화 = 나라
+const COUNTRY = { "€":"독일", "₩":"한국" };   // 통화 = 나라. 여기 순서대로 화면에 나옴
 const DEFAULT_RATE = 1578;        // 1유로 = ?원 (매일 자동 갱신)
 const BACKUP_WARN_DAYS = 14;      // 며칠 지나면 백업하라고 알릴지
 /* ═══════════════════════════════════════════════ */
@@ -170,7 +175,16 @@ let db = load();
 let tab = "add";
 let country = "전체";
 const cf = () => country === "전체" ? null : country;
-let draft = { m:"데이트", s:"식사", p:"나", cur:"₩", amt:"", memo:"" };
+const MAINS = [...new Set(Object.values(CAT).flatMap(Object.keys))];   // 모든 나라의 대분류
+const CUR_CHIPS = Object.entries(COUNTRY).map(([c, n]) => c + " " + n); // ["€ 독일","₩ 한국"]
+/* 통화를 바꿨을 때 그 나라에 없는 분류면 첫 번째 걸로 */
+function fitCat(d){
+  const cats = CAT[d.cur];
+  if (!cats[d.m]) d.m = Object.keys(cats)[0];
+  if (!cats[d.m].includes(d.s)) d.s = cats[d.m][0];
+  return d;
+}
+let draft = fitCat({ m:"개인", s:"", p:"나", cur:"€", amt:"", memo:"" });
 
 function load(){
   const base = { tx:[], fixed:[], loans:[], rate:DEFAULT_RATE, rateAt:"", backupAt:"" };
@@ -213,7 +227,7 @@ function summarize(tx, fixed, ym, country, rate){
   const sum = a => a.reduce((s,t) => s + t.a, 0);
 
   const byMain = {};
-  for (const m of Object.keys(CAT)) byMain[m] = 0;
+  for (const m of MAINS) byMain[m] = 0;
   for (const t of mine) byMain[t.m] = (byMain[t.m] || 0) + t.a;
 
   const date = rows.filter(t => t.m === "데이트");
@@ -320,8 +334,8 @@ function viewAdd(v){
   const c = el('<div class="card"></div>');
 
   c.append(el("<label>어디서 썼나</label>"),
-           chips(["₩ 한국","€ 독일"], draft.cur + " " + COUNTRY[draft.cur],
-                 x => { draft.cur = x[0]; render(); }, true));
+           chips(CUR_CHIPS, draft.cur + " " + COUNTRY[draft.cur],
+                 x => { draft.cur = x[0]; fitCat(draft); render(); }, true));
 
   c.append(el("<label>금액 (" + cur + ")</label>"),
            el('<input id="amt" type="text" inputmode="' + (eur ? "decimal" : "numeric") + '" placeholder="0">'),
@@ -341,10 +355,13 @@ function viewAdd(v){
     box.append(rf, rm); rr.append(box); c.append(rr);
   }
 
-  c.append(el("<label>대분류</label>"),
-           chips(Object.keys(CAT), draft.m, m => { draft.m = m; draft.s = CAT[m][0]; render(); }));
+  const cats = CAT[cur];
+  if (Object.keys(cats).length > 1)                 // 독일처럼 대분류가 하나뿐이면 안 보여줌
+    c.append(el("<label>대분류</label>"),
+             chips(Object.keys(cats), draft.m, m => { draft.m = m; draft.s = cats[m][0]; render(); }));
 
-  c.append(el("<label>세부분류</label>"), chips(CAT[draft.m], draft.s, s => { draft.s = s; render(); }));
+  c.append(el("<label>" + (Object.keys(cats).length > 1 ? "세부분류" : "분류") + "</label>"),
+           chips(cats[draft.m], draft.s, s => { draft.s = s; render(); }));
 
   if (draft.m === "데이트")
     c.append(el("<label>누가 냈나</label>"), chips(PAYERS, draft.p, p => { draft.p = p; render(); }));
@@ -456,7 +473,7 @@ function viewStat(v){
     c0.append(sp0); v.append(c0);
   }
 
-  const parts = Object.keys(CAT).map((m, i) => ({ label: m, value: s.byMain[m], color: hueOf(m, i) }));
+  const parts = MAINS.map((m, i) => ({ label: m, value: s.byMain[m], color: hueOf(m, i) }));
   const c1 = el('<div class="card"><h2>어디에 썼나</h2></div>');
   const dw = el('<div class="donutwrap"></div>');
   dw.append(el(donut(parts)));
@@ -588,10 +605,10 @@ function viewLoan(v){
     v.append(c);
   }
 
-  const LC = viewLoan.cur || "₩";                 // 등록 폼에서 고른 통화
+  const LC = viewLoan.cur || "€";                 // 등록 폼에서 고른 통화
   const f = el('<div class="card"><h2>대출 등록</h2></div>');
   f.append(el("<label>어느 나라 돈으로 빌렸나</label>"),
-           chips(["₩ 원화","€ 유로"], LC === "€" ? "€ 유로" : "₩ 원화",
+           chips(["€ 유로","₩ 원화"], LC === "€" ? "€ 유로" : "₩ 원화",
                  x => { viewLoan.cur = x[0]; render(); }, true),
            el("<label>이름</label>"), el('<input id="ln" placeholder="전세자금 / 독일 대출 / 차량">'),
            el("<label>총액 — 빌린 원금 (" + LC + ")</label>"),
@@ -610,7 +627,7 @@ function viewLoan(v){
                     rate: parseFloat($("#lr").value) || 0,
                     day: Math.min(31, Math.max(1, parseInt($("#ld").value, 10) || 1)),
                     monthly: numOf($("#lm").value), start: today() });
-    viewLoan.cur = "₩"; save(); render(true); toast(name + " 등록됨");
+    viewLoan.cur = "€"; save(); render(true); toast(name + " 등록됨");
   };
   f.append(b); v.append(f);
 }
@@ -656,9 +673,9 @@ function viewSet(v){
   v.append(c);
 
   const f = el('<div class="card"><h2>고정비 추가</h2></div>');
-  const FC = viewSet.cur || "₩";                  // 추가 폼에서 고른 나라
+  const FC = viewSet.cur || "€";                  // 추가 폼에서 고른 나라
   f.append(el("<label>어느 나라</label>"),
-           chips(["₩ 한국","€ 독일"], FC + " " + COUNTRY[FC], x => { viewSet.cur = x[0]; render(); }, true),
+           chips(CUR_CHIPS, FC + " " + COUNTRY[FC], x => { viewSet.cur = x[0]; render(); }, true),
            el("<label>이름</label>"), el('<input id="fn" placeholder="월세 / 통신비 / 구독료">'),
            el("<label>금액 (" + FC + ")</label>"), el('<input id="fa" inputmode="decimal" placeholder="0">'),
            el("<label>결제일</label>"), el('<input id="fd" type="number" min="1" max="31" value="25">'));
@@ -670,7 +687,7 @@ function viewSet(v){
     if (!name || !a) return toast("이름과 금액을 입력하세요");
     db.fixed.push({ id: crypto.randomUUID(), name, a, cur: FC, orig: FC === "€" ? orig : null,
                     day: Math.min(31, Math.max(1, parseInt($("#fd").value, 10) || 1)) });
-    viewSet.cur = "₩"; save(); render(true); toast("추가됨");
+    viewSet.cur = "€"; save(); render(true); toast("추가됨");
   };
   f.append(b); v.append(f);
 
@@ -813,6 +830,11 @@ function runTests(){
   ok("총합 480,000",               s.total === 480000);
   ok("데이트 30,000 (내 결제만)",  s.byMain["데이트"] === 30000);
   ok("대출금 대분류 없음",         !("대출금" in s.byMain));
+  ok("독일엔 데이트 없음",         !CAT["€"]["데이트"]);
+  ok("€ 전환 시 데이트→개인/장보기", (d => d.m === "개인" && d.s === "장보기")(fitCat({ m:"데이트", s:"식사", cur:"€" })));
+  ok("₩ 전환 시 장보기→식비",      fitCat({ m:"개인", s:"장보기", cur:"₩" }).s === "식비");
+  ok("공통 세부분류는 유지",       fitCat({ m:"개인", s:"쇼핑", cur:"₩" }).s === "쇼핑");
+  ok("유로가 먼저",                CUR_CHIPS[0] === "€ 독일");
   const lx = summarize([...tx, { id:"9", d:"2026-09-25", m:"대출금", s:"이자", p:"나", a:70000, loan:"L1" }],
                        fx, "2026-09");
   ok("대출 상환은 가계부 합계 제외", lx.varTotal === 80000 && lx.rows.length === 4);
@@ -912,7 +934,7 @@ function runTests(){
 /* 홈 화면 앱은 옛 파일을 캐시에 붙들고 있어서, 켤 때·다시 열 때 서버 파일과 버전을 비교한다.
    cache:"reload"는 네트워크에서 새로 받아 캐시까지 갈아끼우므로 그 뒤 reload하면 새 버전이 뜬다.
    올릴 때마다 VERSION 숫자만 바꾸면 됨 */
-const VERSION = "2026-10-13b";
+const VERSION = "2026-10-15a";
 function checkUpdate(){
   fetch(location.pathname, { cache:"reload" })
     .then(r => r.text())
