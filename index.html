@@ -246,9 +246,11 @@ function summarize(tx, fixed, ym, country, rate){
   const fixedTotal = fx.reduce((s,f) => s + fixedKRW(f, rate), 0);
   const varTotal   = sum(mine);
   const eurOf = x => x.cur === "€" ? (x.orig || 0) : 0;      // 유로로 낸 돈 원래 금액
-  const eur = Math.round((mine.reduce((s,t) => s + eurOf(t), 0)
-                        + fx.reduce((s,f) => s + eurOf(f), 0)) * 100) / 100;
-  return { rows, byMain, byPayer, bySub, fixedTotal, varTotal, eur,
+  const r2 = n => Math.round(n * 100) / 100;
+  const eurVar   = r2(mine.reduce((s,t) => s + eurOf(t), 0));
+  const eurFixed = r2(fx.reduce((s,f) => s + eurOf(f), 0));
+  return { rows, byMain, byPayer, bySub, fixedTotal, varTotal,
+           eur: r2(eurVar + eurFixed), eurVar, eurFixed,
            gfTotal: sum(rows) - varTotal, total: varTotal + fixedTotal };
 }
 
@@ -426,7 +428,8 @@ function viewList(v){
   countryChips(v);
   const s = summarize(db.tx, db.fixed, $("#ym").value, cf(), db.rate);
   const c = el('<div class="card"></div>');
-  c.append(el("<h2>" + s.rows.length + "건 · 내 지출 " + won(s.varTotal) + "원</h2>"));
+  c.append(el("<h2>" + s.rows.length + "건 · 내 지출 "
+    + (country === "독일" ? fmt(s.eurVar, "€") : won(s.varTotal) + "원") + "</h2>"));
   if (s.gfTotal) c.append(el('<div class="note" style="margin:-8px 0 6px">'
     + esc(PAYERS[1]) + " 결제 " + won(s.gfTotal) + "원은 내 지출에서 빠집니다</div>"));
   if (!s.rows.length) c.append(el('<div class="empty">이 달 내역이 없습니다</div>'));
@@ -453,15 +456,17 @@ function viewList(v){
 function viewStat(v){
   const ym = $("#ym").value;
   const s  = summarize(db.tx, db.fixed, ym, cf(), db.rate);
+  const DE = country === "독일";                  // 독일만 볼 땐 유로가 주인공, 원화는 참고
   countryChips(v);
 
   v.append(el('<div class="hero"><div class="cap">' + ym.replace("-", "년 ") + "월 "
     + (cf() ? country + " " : "") + "총 지출</div>"
-    + '<div class="v num">' + won(s.total) + "<span style=\"font-size:22px\">원</span></div>"
-    + '<div class="sub"><div>변동비<b class="num">' + won(s.varTotal) + "</b></div>"
-    + '<div>고정비<b class="num">' + won(s.fixedTotal) + "</b></div>"
-    + (country === "독일" ? '<div>유로로<b class="num">' + fmt(s.eur, "€") + "</b></div>"
-                          : '<div>건수<b class="num">' + s.rows.length + "</b></div>")
+    + (DE ? '<div class="v num">' + fmt(s.eur, "€") + "</div>"
+          + '<div class="cap" style="margin:-8px 0 12px">≈ ' + won(s.total) + "원</div>"
+          : '<div class="v num">' + won(s.total) + "<span style=\"font-size:22px\">원</span></div>")
+    + '<div class="sub"><div>변동비<b class="num">' + (DE ? fmt(s.eurVar, "€") : won(s.varTotal)) + "</b></div>"
+    + '<div>고정비<b class="num">' + (DE ? fmt(s.eurFixed, "€") : won(s.fixedTotal)) + "</b></div>"
+    + '<div>건수<b class="num">' + s.rows.length + "</b></div>"
     + "</div></div>"));
 
   if (!cf()){
@@ -469,8 +474,10 @@ function viewStat(v){
     const sp0 = el('<div class="split"></div>');
     for (const [cur, name] of Object.entries(COUNTRY)){
       const k = summarize(db.tx, db.fixed, ym, name, db.rate);
-      sp0.append(el('<div class="pill"><i>' + name + "</i><b>" + won(k.total) + "</b>"
-        + '<div class="s">고정 ' + won(k.fixedTotal) + "</div></div>"));
+      const E = cur === "€";
+      sp0.append(el('<div class="pill"><i>' + name + "</i><b>" + (E ? fmt(k.eur, "€") : won(k.total)) + "</b>"
+        + '<div class="s">' + (E ? "≈ " + won(k.total) + "원<br>고정 " + fmt(k.eurFixed, "€")
+                                 : "고정 " + won(k.fixedTotal)) + "</div></div>"));
     }
     c0.append(sp0); v.append(c0);
   }
@@ -529,14 +536,15 @@ function viewStat(v){
     const d = new Date(ym + "-01T00:00:00");
     d.setMonth(d.getMonth() - i);
     const k = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
-    months.push([k, summarize(db.tx, db.fixed, k, cf(), db.rate).total]);
+    const m = summarize(db.tx, db.fixed, k, cf(), db.rate);
+    months.push([k, DE ? m.eur : m.total]);
   }
   const mmx = Math.max(1, ...months.map(x => x[1]));
   const c4 = el('<div class="card"><h2>최근 6개월</h2></div>');
   const cols = el('<div class="cols"></div>');
   for (const [k, a] of months)
     cols.append(el('<div class="col' + (k === ym ? " now" : "") + '">'
-      + '<em>' + (a ? Math.round(a / 10000) + "만" : "") + "</em>"
+      + '<em>' + (!a ? "" : DE ? "€" + Math.round(a).toLocaleString("ko-KR") : Math.round(a / 10000) + "만") + "</em>"
       + '<u style="height:' + Math.max(3, a / mmx * 82) + '%"></u>'
       + "<span>" + Number(k.slice(5)) + "월</span></div>"));
   c4.append(cols); v.append(c4);
@@ -668,9 +676,12 @@ function viewFixed(v){
 
   v.append(el('<div class="hero" style="background:linear-gradient(140deg,#0d9488,#0f766e 60%,#115e59)">'
     + '<div class="cap">매달 나가는 고정비' + (cf() ? " · " + country : "") + "</div>"
-    + '<div class="v num">' + won(tot) + '<span style="font-size:22px">원</span></div>'
+    + (country === "독일"
+        ? '<div class="v num">' + fmt(eurT, "€") + "</div>"
+          + '<div class="cap" style="margin:-8px 0 12px">≈ ' + won(tot) + "원</div>"
+        : '<div class="v num">' + won(tot) + '<span style="font-size:22px">원</span></div>')
     + '<div class="sub">'
-    + (eurT ? '<div>유로로<b class="num">' + fmt(eurT, "€") + "</b></div>" : "")
+    + (eurT && country !== "독일" ? '<div>유로로<b class="num">' + fmt(eurT, "€") + "</b></div>" : "")
     + '<div>항목<b class="num">' + list.length + "</b></div></div></div>"));
 
   if (!list.length)
@@ -901,6 +912,7 @@ function runTests(){
   ok("독일 고정비 €800 x1500",      sd.fixedTotal === 1200000);
   ok("독일 총합 1,215,000",         sd.total === 1215000);
   ok("독일 유로 합계 €810 (여친 제외)", sd.eur === 810);
+  ok("독일 유로 변동 €10 / 고정 €800", sd.eurVar === 10 && sd.eurFixed === 800);
   ok("전체 = 한국 + 독일",          summarize(ctx, cfx, "2026-09", null, 1500).total === sk.total + sd.total);
   ok("유로 고정비는 오늘 환율",     fixedKRW(cfx[0], 1600) === 1280000);
 
@@ -973,7 +985,7 @@ function runTests(){
 /* 홈 화면 앱은 옛 파일을 캐시에 붙들고 있어서, 켤 때·다시 열 때 서버 파일과 버전을 비교한다.
    cache:"reload"는 네트워크에서 새로 받아 캐시까지 갈아끼우므로 그 뒤 reload하면 새 버전이 뜬다.
    올릴 때마다 VERSION 숫자만 바꾸면 됨 */
-const VERSION = "2026-10-15c";
+const VERSION = "2026-10-15d";
 function checkUpdate(){
   fetch(location.pathname, { cache:"reload" })
     .then(r => r.text())
